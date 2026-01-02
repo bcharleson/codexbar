@@ -208,6 +208,7 @@ public struct AugmentStatusSnapshot: Sendable {
 
 public enum AugmentStatusProbeError: Error, LocalizedError {
     case noSessionCookie
+    case sessionExpired
     case networkError(String)
     case parseFailed(String)
     case noPortalUrl
@@ -218,6 +219,8 @@ public enum AugmentStatusProbeError: Error, LocalizedError {
         switch self {
         case .noSessionCookie:
             "No Augment session cookie found. Please log in to app.augmentcode.com in your browser."
+        case .sessionExpired:
+            "Your Augment session has expired. Please log in again at app.augmentcode.com"
         case let .networkError(message):
             "Network error: \(message)"
         case let .parseFailed(message):
@@ -321,19 +324,64 @@ public struct AugmentStatusProbe: Sendable {
         try await self.fetchWithCookieHeader(cookieHeader)
     }
 
-    /// Fetch Augment usage using browser cookies with fallback to stored session.
+    /// Fetch Augment usage using browser cookies with automatic retry on session expiration.
+    ///
+    /// This method implements automatic cookie refresh:
+    /// 1. Attempts to fetch usage with current cookies
+    /// 2. If session expires (HTTP 401), automatically imports fresh cookies from browser
+    /// 3. Retries the request once with fresh cookies
+    /// 4. If still failing, throws the error to the caller
     public func fetch(cookieHeaderOverride: String? = nil, logger: ((String) -> Void)? = nil)
         async throws -> AugmentStatusSnapshot
     {
+        let log: (String) -> Void = { msg in
+            logger?("[augment] \(msg)")
+            print("[CodexBar:Augment] \(msg)")  // Also print to console for debugging
+        }
+
         let cookieHeader: String
+        let initialSource: String
         if let override = cookieHeaderOverride {
             cookieHeader = override
+            initialSource = "manual override"
+            log("Using manual cookie override")
         } else {
             let session = try AugmentCookieImporter.importSession(logger: logger)
             cookieHeader = session.cookieHeader
+            initialSource = session.sourceLabel
+            log("Imported cookies from \(initialSource)")
         }
 
-        return try await self.fetchWithCookieHeader(cookieHeader)
+        do {
+            log("Attempting API request with cookies from \(initialSource)...")
+            return try await self.fetchWithCookieHeader(cookieHeader)
+        } catch AugmentStatusProbeError.sessionExpired {
+            // Session expired - automatically retry with fresh cookies from browser
+            log("⚠️ Session expired (HTTP 401), attempting automatic cookie refresh...")
+
+            // Only retry if we're in auto mode (not manual override)
+            guard cookieHeaderOverride == nil else {
+                log("✗ Manual cookie mode - cannot auto-refresh. Please update your cookie manually.")
+                throw AugmentStatusProbeError.sessionExpired
+            }
+
+            // Import fresh cookies from browser
+            log("🔄 Re-importing cookies from browser (previous source: \(initialSource))...")
+            let freshSession = try AugmentCookieImporter.importSession(logger: logger)
+            log("✓ Fresh cookies imported from \(freshSession.sourceLabel), retrying API request...")
+
+            // Retry with fresh cookies
+            do {
+                let result = try await self.fetchWithCookieHeader(freshSession.cookieHeader)
+                log("✅ Retry succeeded! Session recovered.")
+                return result
+            } catch AugmentStatusProbeError.sessionExpired {
+                log("✗ Retry failed - fresh cookies from \(freshSession.sourceLabel) are also expired!")
+                log("   This means your browser session at app.augmentcode.com is also expired.")
+                log("   Please log in again at https://app.augmentcode.com")
+                throw AugmentStatusProbeError.sessionExpired
+            }
+        }
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> AugmentStatusSnapshot {
@@ -380,6 +428,11 @@ public struct AugmentStatusProbe: Sendable {
             throw AugmentStatusProbeError.networkError("Invalid response type")
         }
 
+        // Check for session expiration (HTTP 401)
+        if httpResponse.statusCode == 401 {
+            throw AugmentStatusProbeError.sessionExpired
+        }
+
         guard httpResponse.statusCode == 200 else {
             let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
             throw AugmentStatusProbeError.networkError("HTTP \(httpResponse.statusCode): \(rawJSON.prefix(200))")
@@ -408,6 +461,11 @@ public struct AugmentStatusProbe: Sendable {
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AugmentStatusProbeError.networkError("Invalid response type")
+        }
+
+        // Check for session expiration (HTTP 401)
+        if httpResponse.statusCode == 401 {
+            throw AugmentStatusProbeError.sessionExpired
         }
 
         guard httpResponse.statusCode == 200 else {
