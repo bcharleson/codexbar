@@ -84,13 +84,15 @@ struct ClaudeOAuthTests {
 
     @Test
     func mapsOAuthExtraUsage() throws {
+        // OAuth API returns values in cents (minor units), same as Web API.
+        // The normalization always converts to dollars (major units).
         let json = """
         {
           "five_hour": { "utilization": 1, "resets_at": "2025-12-25T12:00:00.000Z" },
           "extra_usage": {
             "is_enabled": true,
-            "monthly_limit": 20.5,
-            "used_credits": 3.25
+            "monthly_limit": 2050,
+            "used_credits": 325
           }
         }
         """
@@ -129,6 +131,15 @@ struct ClaudeOAuthTests {
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
         #expect(snap.opus?.usedPercent == 42)
+    }
+
+    @Test
+    func includesBodyInOAuth403Error() {
+        let err = ClaudeOAuthFetchError.serverError(
+            403,
+            "HTTP 403: OAuth token does not meet scope requirement user:profile")
+        #expect(err.localizedDescription.contains("user:profile"))
+        #expect(err.localizedDescription.contains("HTTP 403"))
     }
 
     @Test
