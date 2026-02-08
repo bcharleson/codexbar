@@ -1250,7 +1250,13 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: self.browserDetection) { msg in lines.append(msg) }
             }
-            let hasOAuthCredentials = (try? ClaudeOAuthCredentialsStore.load()) != nil
+            // Don't prompt for keychain access during debug dump
+            let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
+                allowKeychainPrompt: false,
+                respectKeychainPromptCooldown: true)
+            let hasOAuthCredentials = oauthRecord?.credentials.scopes.contains("user:profile") == true
+            let hasClaudeBinary = ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
+            let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
 
             let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
                 selectedDataSource: claudeUsageDataSource,
@@ -1258,9 +1264,23 @@ extension UsageStore {
                 hasWebSession: hasKey,
                 hasOAuthCredentials: hasOAuthCredentials)
 
-            lines.append("strategy=\(strategy.dataSource.rawValue)")
+            if claudeUsageDataSource == .auto {
+                lines.append("pipeline_order=oauth→web→cli")
+                lines.append("auto_heuristic=\(strategy.dataSource.rawValue)")
+            } else {
+                lines.append("strategy=\(strategy.dataSource.rawValue)")
+            }
             lines.append("hasSessionKey=\(hasKey)")
             lines.append("hasOAuthCredentials=\(hasOAuthCredentials)")
+            lines.append("oauthCredentialOwner=\(oauthRecord?.owner.rawValue ?? "none")")
+            lines.append("oauthCredentialSource=\(oauthRecord?.source.rawValue ?? "none")")
+            lines.append("oauthCredentialExpired=\(oauthRecord?.credentials.isExpired ?? false)")
+            lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
+            lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
+            if let delegatedCooldownSeconds {
+                lines.append("delegatedRefreshCooldownSeconds=\(delegatedCooldownSeconds)")
+            }
+            lines.append("hasClaudeBinary=\(hasClaudeBinary)")
             if strategy.useWebExtras {
                 lines.append("web_extras=enabled")
             }

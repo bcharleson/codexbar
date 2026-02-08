@@ -71,14 +71,7 @@ public enum ClaudeProviderDescriptor {
             let manualCookieHeader = CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
             switch context.sourceMode {
             case .oauth:
-                return [
-                    ClaudeOAuthFetchStrategy(),
-                    ClaudeWebFetchStrategy(browserDetection: context.browserDetection),
-                    ClaudeCLIFetchStrategy(
-                        useWebExtras: webExtrasEnabled,
-                        manualCookieHeader: manualCookieHeader,
-                        browserDetection: context.browserDetection),
-                ]
+                return [ClaudeOAuthFetchStrategy()]
             case .web:
                 return [ClaudeWebFetchStrategy(browserDetection: context.browserDetection)]
             case .cli:
@@ -135,15 +128,74 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.oauth"
     let kind: ProviderFetchKind = .oauth
 
+    #if DEBUG
+    @TaskLocal static var nonInteractiveCredentialRecordOverride: ClaudeOAuthCredentialRecord?
+    @TaskLocal static var claudeCLIAvailableOverride: Bool?
+    #endif
+
+    private func loadNonInteractiveCredentialRecord(_ context: ProviderFetchContext) -> ClaudeOAuthCredentialRecord? {
+        #if DEBUG
+        if let override = Self.nonInteractiveCredentialRecordOverride { return override }
+        #endif
+
+        return try? ClaudeOAuthCredentialsStore.loadRecord(
+            environment: context.env,
+            allowKeychainPrompt: false,
+            respectKeychainPromptCooldown: true)
+    }
+
+    private func isClaudeCLIAvailable() -> Bool {
+        #if DEBUG
+        if let override = Self.claudeCLIAvailableOverride { return override }
+        #endif
+        return ClaudeOAuthDelegatedRefreshCoordinator.isClaudeCLIAvailable()
+    }
+
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard let creds = try? ClaudeOAuthCredentialsStore.load(environment: context.env) else { return false }
-        // In Auto mode, only prefer OAuth when we know the scope is present.
-        // In OAuth-only mode, still show a useful error message even when the scope is missing.
-        // (The strategy can fall back to Web/CLI when allowed by the fetch plan.)
-        if context.sourceMode == .auto {
-            return creds.scopes.contains("user:profile")
+        let nonInteractiveRecord = self.loadNonInteractiveCredentialRecord(context)
+        let nonInteractiveCredentials = nonInteractiveRecord?.credentials
+        let hasRequiredScopeWithoutPrompt = nonInteractiveCredentials?.scopes.contains("user:profile") == true
+        if hasRequiredScopeWithoutPrompt, nonInteractiveCredentials?.isExpired == false {
+            // Gate controls refresh attempts, not use of already-valid access tokens.
+            return true
         }
-        return true
+
+        let hasEnvironmentOAuthToken = !(context.env[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        let claudeCLIAvailable = self.isClaudeCLIAvailable()
+
+        if hasEnvironmentOAuthToken {
+            return true
+        }
+
+        if let nonInteractiveRecord, hasRequiredScopeWithoutPrompt, nonInteractiveRecord.credentials.isExpired {
+            switch nonInteractiveRecord.owner {
+            case .codexbar:
+                let refreshToken = nonInteractiveRecord.credentials.refreshToken?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if context.sourceMode == .auto {
+                    return !refreshToken.isEmpty
+                }
+                return true
+            case .claudeCLI:
+                if context.sourceMode == .auto {
+                    return claudeCLIAvailable
+                }
+                return true
+            case .environment:
+                return context.sourceMode != .auto
+            }
+        }
+
+        guard context.sourceMode == .auto else { return true }
+
+        // Prefer OAuth in Auto mode only when it’s plausibly usable:
+        // - we can load credentials without prompting (env / CodexBar cache / credentials file) AND they meet the
+        //   scope requirement, or
+        // - Claude Code has stored OAuth creds in Keychain and we may be able to bootstrap (one prompt max).
+        guard ClaudeOAuthKeychainAccessGate.shouldAllowPrompt() else { return false }
+        return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -151,6 +203,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             browserDetection: context.browserDetection,
             environment: context.env,
             dataSource: .oauth,
+            oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return self.makeResult(
@@ -159,7 +212,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
-        context.runtime == .app && (context.sourceMode == .auto || context.sourceMode == .oauth)
+        // In Auto mode, fall back to the next strategy (web/cli) if OAuth fails (e.g. user cancels keychain prompt
+        // or auth breaks).
+        context.runtime == .app && context.sourceMode == .auto
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
@@ -240,7 +295,7 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "claude")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
         false
     }
 }
