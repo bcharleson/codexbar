@@ -570,21 +570,11 @@ public struct CursorStatusProbe: Sendable {
     }
 
     private func fetchWithCookieHeader(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
-        async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
-        async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
-
-        // Explicitly consume userInfoTask in the error path to avoid a Swift concurrency
-        // runtime crash (asyncLet_finish_after_task_completion) on macOS 26 when the parent
-        // scope exits via a thrown error before the async let binding is awaited.
-        let usageSummary: CursorUsageSummary
-        let rawJSON: String
-        do {
-            (usageSummary, rawJSON) = try await usageSummaryTask
-        } catch {
-            _ = try? await userInfoTask
-            throw error
-        }
-        let userInfo = try? await userInfoTask
+        // Sequential awaits instead of async let to avoid a Swift 6 runtime crash
+        // (asyncLet_finish_after_task_completion / _swift_task_dealloc_specific) on macOS 26
+        // beta when child task cleanup races with parent scope teardown.
+        let (usageSummary, rawJSON) = try await self.fetchUsageSummary(cookieHeader: cookieHeader)
+        let userInfo = try? await self.fetchUserInfo(cookieHeader: cookieHeader)
 
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
