@@ -573,7 +573,17 @@ public struct CursorStatusProbe: Sendable {
         async let usageSummaryTask = self.fetchUsageSummary(cookieHeader: cookieHeader)
         async let userInfoTask = self.fetchUserInfo(cookieHeader: cookieHeader)
 
-        let (usageSummary, rawJSON) = try await usageSummaryTask
+        // Explicitly consume userInfoTask in the error path to avoid a Swift concurrency
+        // runtime crash (asyncLet_finish_after_task_completion) on macOS 26 when the parent
+        // scope exits via a thrown error before the async let binding is awaited.
+        let usageSummary: CursorUsageSummary
+        let rawJSON: String
+        do {
+            (usageSummary, rawJSON) = try await usageSummaryTask
+        } catch {
+            _ = try? await userInfoTask
+            throw error
+        }
         let userInfo = try? await userInfoTask
 
         // Fetch legacy request usage only if user has a sub ID.
