@@ -10,6 +10,7 @@ struct ProviderIconResourcesTests {
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
         let slugs = [
+            "alibaba",
             "amp",
             "antigravity",
             "augment",
@@ -20,12 +21,17 @@ struct ProviderIconResourcesTests {
             "factory",
             "gemini",
             "jetbrains",
+            "kilo",
             "kimi",
             "kiro",
             "minimax",
+            "ollama",
             "opencode",
+            "openrouter",
+            "perplexity",
             "synthetic",
             "vertexai",
+            "warp",
             "zai",
         ]
         for slug in slugs {
