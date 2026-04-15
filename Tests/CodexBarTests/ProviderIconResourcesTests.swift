@@ -27,6 +27,7 @@ struct ProviderIconResourcesTests {
             "minimax",
             "ollama",
             "opencode",
+            "opencodego",
             "openrouter",
             "perplexity",
             "synthetic",
