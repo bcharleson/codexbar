@@ -351,7 +351,7 @@ public enum ClaudeWebAPIFetcher {
         for browserSource in installedBrowsers {
             do {
                 let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.records(
+                let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
@@ -708,7 +708,7 @@ public enum ClaudeWebAPIFetcher {
         return memberships.first
     }
 
-    private struct ProbeParseResult: Sendable {
+    private struct ProbeParseResult {
         let keys: [String]
         let emails: [String]
         let planHints: [String]

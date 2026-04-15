@@ -33,6 +33,32 @@ struct OpenAIDashboardParserTests {
     }
 
     @Test
+    func `parses code review limit with reset`() {
+        let body = """
+        Balance
+        Code review
+        42% remaining
+        Resets tomorrow at 2:15 PM
+        """
+        let limit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: body)
+        #expect(abs((limit?.usedPercent ?? 0) - 58) < 0.001)
+        #expect(limit?.resetDescription?.lowercased().contains("resets") == true)
+    }
+
+    @Test
+    func `parses core review limit with reset`() {
+        let body = """
+        Balance
+        Core review
+        42% remaining
+        Resets tomorrow at 2:15 PM
+        """
+        let limit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: body)
+        #expect(abs((limit?.usedPercent ?? 0) - 58) < 0.001)
+        #expect(limit?.resetDescription?.lowercased().contains("resets") == true)
+    }
+
+    @Test
     func `parses credits remaining`() {
         let body = "Balance\nCredits remaining 1,234.56\nUsage"
         let value = OpenAIDashboardParser.parseCreditsRemaining(bodyText: body)
@@ -70,6 +96,20 @@ struct OpenAIDashboardParserTests {
         </html>
         """
         #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Plus")
+    }
+
+    @Test
+    func `parses prolite plan from client bootstrap`() {
+        let html = """
+        <html>
+        <body>
+        <script type="application/json" id="client-bootstrap">
+        {"session":{"user":{"email":"user@example.com"}},"planType":"prolite"}
+        </script>
+        </body>
+        </html>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
     }
 
     @Test
@@ -129,5 +169,51 @@ struct OpenAIDashboardParserTests {
         decoder.dateDecodingStrategy = .iso8601
         let snapshot = try decoder.decode(OpenAIDashboardSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.usageBreakdown.isEmpty)
+    }
+
+    @Test
+    func `weekly only dashboard usage projects into secondary slot`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let usage = snapshot.toUsageSnapshot(provider: .codex)
+
+        #expect(usage?.primary == nil)
+        #expect(usage?.secondary?.usedPercent == 25)
+        #expect(usage?.secondary?.windowMinutes == 10080)
+        #expect(usage?.identity?.providerID == .codex)
+        #expect(usage?.identity?.accountEmail == "user@example.com")
+    }
+
+    @Test
+    func `dashboard usage projection returns nil when all limits are absent`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: nil,
+            secondaryLimit: nil,
+            creditsRemaining: nil,
+            accountPlan: "pro",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.toUsageSnapshot(provider: .codex) == nil)
     }
 }

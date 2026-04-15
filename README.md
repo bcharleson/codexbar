@@ -1,6 +1,6 @@
 # CodexBar 🎚️ - May your tokens never run out.
 
-Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, and OpenRouter limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
+Tiny macOS 14+ menu bar app that keeps your Codex, Claude, Cursor, Gemini, Antigravity, Droid (Factory), Copilot, z.ai, Kiro, Vertex AI, Augment, Amp, JetBrains AI, OpenRouter, and Perplexity limits visible (session + weekly where available) and shows when each window resets. One status item per provider (or Merge Icons mode with a provider switcher and optional Overview tab); enable what you use from Settings. No Dock icon, minimal UI, dynamic bar icons in the menu bar.
 
 <img src="codexbar.png" alt="CodexBar menu screenshot" width="520" />
 
@@ -92,6 +92,7 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 ## Docs
 - Providers overview: [docs/providers.md](docs/providers.md)
 - Provider authoring: [docs/provider.md](docs/provider.md)
+- Issue labeling guide: [docs/ISSUE_LABELING.md](docs/ISSUE_LABELING.md)
 - UI & icon notes: [docs/ui.md](docs/ui.md)
 - CLI reference: [docs/cli.md](docs/cli.md)
 - Architecture: [docs/architecture.md](docs/architecture.md)

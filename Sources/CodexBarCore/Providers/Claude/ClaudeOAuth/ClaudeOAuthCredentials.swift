@@ -100,7 +100,7 @@ public enum ClaudeOAuthCredentialsStore {
         self.memoryCacheLock.unlock()
     }
 
-    private struct CollaboratorContext: Sendable {
+    private struct CollaboratorContext {
         let allowBackgroundPromptBootstrap: Bool
         #if DEBUG
         let credentialsURLOverride: URL?
@@ -153,7 +153,7 @@ public enum ClaudeOAuthCredentialsStore {
         #endif
     }
 
-    private struct Repository: Sendable {
+    private struct Repository {
         let context: CollaboratorContext
 
         func load(environment: [String: String], allowKeychainPrompt: Bool, respectKeychainPromptCooldown: Bool) throws
@@ -591,7 +591,7 @@ public enum ClaudeOAuthCredentialsStore {
         }
     }
 
-    private struct Recovery: Sendable {
+    private struct Recovery {
         let context: CollaboratorContext
 
         func shouldAttemptFreshnessSyncFromClaudeKeychain(cached: ClaudeOAuthCredentialRecord) -> Bool {
@@ -919,7 +919,7 @@ public enum ClaudeOAuthCredentialsStore {
         }
     }
 
-    private struct Refresher: Sendable {
+    private struct Refresher {
         let context: CollaboratorContext
 
         func refreshAccessToken(
@@ -1702,9 +1702,21 @@ public enum ClaudeOAuthCredentialsStore {
     private static var keychainAccessAllowed: Bool {
         #if DEBUG
         if let override = self.taskKeychainAccessOverride { return !override }
+        if KeychainAccessGate.currentOverrideForTesting == true { return false }
+        if self.hasTaskKeychainTestingOverride { return true }
         #endif
         return !KeychainAccessGate.isDisabled
     }
+
+    #if DEBUG
+    private static var hasTaskKeychainTestingOverride: Bool {
+        self.taskClaudeKeychainOverrideStore != nil
+            || self.taskClaudeKeychainDataOverride != nil
+            || self.taskClaudeKeychainFingerprintOverride != nil
+            || self.taskSecurityCLIReadOverride != nil
+            || self.taskSecurityCLIReadAccountOverride != nil
+    }
+    #endif
 
     private static var isPromptPolicyApplicable: Bool {
         ClaudeOAuthKeychainPromptPreference.isApplicable()

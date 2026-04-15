@@ -10,23 +10,18 @@ struct ProviderIconResourcesTests {
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
         let slugs = [
-            "amp",
-            "antigravity",
-            "augment",
-            "claude",
             "codex",
-            "copilot",
-            "cursor",
-            "factory",
-            "gemini",
-            "jetbrains",
-            "kimi",
-            "kiro",
-            "minimax",
-            "opencode",
-            "synthetic",
-            "vertexai",
+            "claude",
             "zai",
+            "minimax",
+            "cursor",
+            "opencode",
+            "opencodego",
+            "alibaba",
+            "gemini",
+            "antigravity",
+            "factory",
+            "copilot",
         ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")
