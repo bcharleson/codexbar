@@ -1,6 +1,39 @@
 # Changelog
 
-## 0.22 — Unreleased
+## 0.24 — Unreleased
+
+### Providers & Usage
+- Claude: add a peak-hours menu-card indicator with countdowns and a provider setting to hide it (#611). Thanks @hello-amed!
+
+### Fixes
+- Codex: keep same-workspace managed accounts distinct by matching workspace identity with email, so different OpenAI users in one workspace no longer overwrite each other (#796). Thanks @leezhuuuuu!
+
+## 0.23 — 2026-04-26
+
+### Highlights
+- Mistral: add provider support with monthly spend tracking, browser-cookie import, manual cookies, and CLI/token-account support (#607). Thanks @welcoMattic!
+- Claude: show Designs and Daily Routines usage bars from live Claude OAuth/Web quota data, and restore the Web-mode Sonnet bar (#740). Thanks @AISupplyGuy!
+- Cursor: add an Extra usage menu bar metric for on-demand budgets (#789). Thanks @huiye98!
+- Usage: add an opt-in confetti celebration when weekly limits reset after active use (#785). Thanks @zats!
+- Codex: add GPT-5.5 and GPT-5.5 Pro pricing so local cost scanning recognizes the new models.
+- Copilot: show a clearer GitHub Device Flow hint in Settings when the copied device code needs to be pasted into GitHub (#369). Thanks @amoranio!
+
+### Fixes
+- Droid: preserve Factory session fallbacks, use the current usage endpoint, and clarify browser-login messaging (#792). Thanks @JosephDoUrden for the original stale-session fix!
+- Widgets: package App Intents metadata for the widget extension and use configuration defaults so configurable widgets load correctly in WidgetKit (#783). Thanks @ngutman and @vincentyangch!
+- Menu: keep merged-menu cards, switcher rows, wrapped status text, and hosted chart submenus aligned with the real AppKit menu width so menus no longer grow oversized or show narrower chart submenus after width changes. Thanks @ngutman!
+- Codex: ignore invalid zero-minute subscription history so the utilization submenu no longer shows duplicate Session tabs.
+- CLI: report the app bundle version correctly when the bundled helper is launched through a symlink.
+- Codex/Claude: clean up cached CLI status probes during app shutdown so `codex -s read-only` workers are not orphaned after restart.
+
+## 0.22 — 2026-04-21
+
+### Highlights
+- Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry.
+- Synthetic: parse live quota payloads for five-hour, weekly, and search limits, including continuous reset/regeneration details (#732). Thanks @baanish!
+- Antigravity: restore account/quota probing across newer localhost endpoint/token layouts and retry paths (#727). Thanks @icey-zhang!
+- Menu: add standard shortcuts for Refresh, Settings, and Quit while the status menu is open (#737). Thanks @anirudhvee!
+- Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
 
 ### Providers & Usage
 - Synthetic: parse live five-hour, weekly, and search quota payloads, including continuous reset/regeneration details (#732). Thanks @baanish!
@@ -8,9 +41,10 @@
 - Gemini: discover OAuth config in fnm/Homebrew/bundled CLI layouts so expired-token refresh keeps working (#723). Thanks @Leechael!
 - Copilot: open the complete device-login verification URL when available so the browser flow carries the user code (#739). Thanks @skhe!
 - Alibaba: update the China mainland Coding Plan endpoint and browser-cookie domain while keeping older domains as fallbacks (#712). Thanks @hezhongtang!
+- Codex: restore OpenAI web dashboard fetching on the new analytics route and tighten hidden WebView reuse/expiry. @ratulsarna
 
 ### Menu & Settings
-- Widgets: migrate app-group sharing to the Team-ID-prefixed container and carry widget state across the move (#701). Thanks @ngutman!
+- Menu: show and handle standard shortcuts for Refresh (⌘R), Settings (⌘,), and Quit (⌘Q) while the status menu is open (#737). Thanks @anirudhvee!
 - Settings: fix provider-sidebar clipping on macOS Tahoe and resize the Preferences window when switching tabs (#580). Thanks @chadneal!
 
 ### Fixes
@@ -67,7 +101,7 @@
 - Add Perplexity provider support with recurring, bonus, and purchased-credit tracking, Pro/Max plan detection, browser-cookie auto-import, and manual-cookie fallback (#449). Thanks @BeelixGit!
 - Add OpenCode Go as a separate provider with 5-hour, weekly, and monthly web usage tracking, widget integration, and browser-cookie support.
 - Claude: fix token and cost inflation caused by cross-file double counting of subagent JSONL logs, fix streaming chunk deduplication, and add `claude-sonnet-4-6` pricing. Thanks @enzonaute for the investigation!
-- Cost history: merge supported pi session usage into Codex/Claude provider history (#653). Thanks @ngutman!
+- Cost history: include supported pi session usage in Codex/Claude provider history so provider charts reflect those local runs (#653). Thanks @ngutman!
 
 ### Providers & Usage
 - Perplexity: add recurring, bonus, and purchased-credit tracking; plan detection for Pro/Max; browser-cookie auto-import; and manual-cookie fallback (#449). Thanks @BeelixGit!
