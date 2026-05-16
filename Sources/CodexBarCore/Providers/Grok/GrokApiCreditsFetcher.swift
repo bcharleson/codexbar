@@ -20,15 +20,15 @@ import FoundationNetworking
 public enum GrokApiCreditsFetcher {
     private static let log = CodexBarLog.logger(LogCategories.providers)
 
-    // Accumulates debug output shown in Debug → Probe logs → Grok
+    /// Accumulates debug output shown in Debug → Probe logs → Grok
     @MainActor
     private static var debugLogString: String = ""
 
     static func appendDebugLog(_ message: String) {
         Task { @MainActor in
-            debugLogString += message + "\n\n"
-            if debugLogString.count > 100_000 {
-                debugLogString = String(debugLogString.suffix(70_000))
+            self.debugLogString += message + "\n\n"
+            if self.debugLogString.count > 100_000 {
+                self.debugLogString = String(self.debugLogString.suffix(70000))
             }
         }
     }
@@ -76,25 +76,25 @@ public enum GrokApiCreditsFetcher {
         // This is the exact call the web UI makes when you visit grok.com/?_s=usage
         if let snapshot = try? await fetchGrokBuildBillingCreditsConfig(accessToken: accessToken) {
             if snapshot.creditsUsedPercent != nil || snapshot.resetsAt != nil {
-                log.info("Successfully fetched Grok credits via gRPC GetGrokCreditsConfig")
+                self.log.info("Successfully fetched Grok credits via gRPC GetGrokCreditsConfig")
                 return snapshot
             }
         }
 
         // === Fallback: previous REST guessing (kept temporarily) ===
-        for baseURL in candidateBaseURLs {
-            for path in usagePaths {
+        for baseURL in self.candidateBaseURLs {
+            for path in self.usagePaths {
                 let urlString = baseURL + path
                 guard let url = URL(string: urlString) else { continue }
 
                 do {
                     let snapshot = try await fetchUsage(from: url, accessToken: accessToken)
                     if snapshot.creditsUsedPercent != nil || snapshot.resetsAt != nil {
-                        log.info("Successfully fetched Grok credits from \(urlString)")
+                        self.log.info("Successfully fetched Grok credits from \(urlString)")
                         return snapshot
                     }
                 } catch {
-                    log.debug("Grok credits request to \(urlString) failed: \(error.localizedDescription)")
+                    self.log.debug("Grok credits request to \(urlString) failed: \(error.localizedDescription)")
                 }
             }
         }
@@ -110,13 +110,17 @@ public enum GrokApiCreditsFetcher {
         }
 
         // Some billing endpoints may expect POST
-        snapshot = try? await performRequest(url: url, accessToken: accessToken, method: "POST")
+        snapshot = try? await self.performRequest(url: url, accessToken: accessToken, method: "POST")
         if let s = snapshot { return s }
 
         throw GrokCreditsProbeError.commandFailed("All attempts failed for \(url)")
     }
 
-    private static func performRequest(url: URL, accessToken: String, method: String) async throws -> GrokCreditsSnapshot {
+    private static func performRequest(
+        url: URL,
+        accessToken: String,
+        method: String) async throws -> GrokCreditsSnapshot
+    {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -135,7 +139,7 @@ public enum GrokApiCreditsFetcher {
             throw GrokCreditsProbeError.commandFailed("HTTP \(httpResponse.statusCode): \(body)")
         }
 
-        return try parseUsageResponse(data: data)
+        return try self.parseUsageResponse(data: data)
     }
 
     private static func parseUsageResponse(data: Data) throws -> GrokCreditsSnapshot {
@@ -145,9 +149,9 @@ public enum GrokApiCreditsFetcher {
 
         // Unwrap common wrappers the backend may use
         let root: [String: Any] = (json["result"] as? [String: Any]) ??
-                                  (json["data"] as? [String: Any]) ??
-                                  (json["billing"] as? [String: Any]) ??
-                                  json
+            (json["data"] as? [String: Any]) ??
+            (json["billing"] as? [String: Any]) ??
+            json
 
         var creditsUsedPercent: Double?
         var resetsAt: Date?
@@ -157,17 +161,19 @@ public enum GrokApiCreditsFetcher {
         // === BillingPeriodUsage shape (from CLI binary strings) ===
         // { monthlyLimit, onDemandCap, billingPeriodStart, billingPeriodEnd, credits: {...}, ... }
         if let monthlyLimit = root["monthlyLimit"] as? Double ?? root["monthly_limit"] as? Double,
-           let used = extractCreditsUsed(from: root) {
+           let used = extractCreditsUsed(from: root)
+        {
             if monthlyLimit > 0 {
                 creditsUsedPercent = (used / monthlyLimit) * 100
             }
         }
 
         if let periodEnd = root["billingPeriodEnd"] as? String ??
-                           root["billing_period_end"] as? String ??
-                           root["periodEnd"] as? String {
+            root["billing_period_end"] as? String ??
+            root["periodEnd"] as? String
+        {
             resetDescription = periodEnd
-            resetsAt = parseDate(periodEnd)
+            resetsAt = self.parseDate(periodEnd)
         }
 
         // onDemand / pay-as-you-go
@@ -184,7 +190,8 @@ public enum GrokApiCreditsFetcher {
             if let percent = credits["percent"] as? Double ?? credits["usedPercent"] as? Double {
                 creditsUsedPercent = percent
             } else if let used = credits["used"] as? Double,
-                      let total = credits["total"] as? Double, total > 0 {
+                      let total = credits["total"] as? Double, total > 0
+            {
                 creditsUsedPercent = (used / total) * 100
             }
             if creditsUsedPercent == nil, let used = extractCreditsUsed(from: credits) {
@@ -195,7 +202,8 @@ public enum GrokApiCreditsFetcher {
 
         // { "usage": { "credits_used_percent": 5.0 } }
         if let usage = root["usage"] as? [String: Any],
-           let percent = usage["credits_used_percent"] as? Double ?? usage["creditsUsedPercent"] as? Double {
+           let percent = usage["credits_used_percent"] as? Double ?? usage["creditsUsedPercent"] as? Double
+        {
             creditsUsedPercent = percent
         }
 
@@ -204,7 +212,8 @@ public enum GrokApiCreditsFetcher {
             if let percent = root["credits_used_percent"] as? Double ?? root["creditsUsedPercent"] as? Double {
                 creditsUsedPercent = percent
             } else if let used = root["creditsUsed"] as? Double ?? root["used"] as? Double,
-                      let total = root["creditsTotal"] as? Double ?? root["total"] as? Double, total > 0 {
+                      let total = root["creditsTotal"] as? Double ?? root["total"] as? Double, total > 0
+            {
                 creditsUsedPercent = (used / total) * 100
             }
         }
@@ -213,7 +222,7 @@ public enum GrokApiCreditsFetcher {
         if resetsAt == nil {
             if let reset = root["reset_at"] as? String ?? root["resets_at"] as? String ?? root["resetAt"] as? String {
                 resetDescription = reset
-                resetsAt = parseDate(reset)
+                resetsAt = self.parseDate(reset)
             }
         }
 
@@ -229,10 +238,12 @@ public enum GrokApiCreditsFetcher {
         // Final fallback: if the CLI prints "Credits used: 5%" somewhere in a wrapped response
         if creditsUsedPercent == nil,
            let raw = String(data: data, encoding: .utf8)?.lowercased(),
-           let range = raw.range(of: "credits used:") {
+           let range = raw.range(of: "credits used:")
+        {
             let after = raw[range.upperBound...]
             if let pctRange = after.range(of: "%"),
-               let val = Double(String(after[..<pctRange.lowerBound]).trimmingCharacters(in: .whitespaces)) {
+               let val = Double(String(after[..<pctRange.lowerBound]).trimmingCharacters(in: .whitespaces))
+            {
                 creditsUsedPercent = val
             }
         }
@@ -241,8 +252,7 @@ public enum GrokApiCreditsFetcher {
             creditsUsedPercent: creditsUsedPercent,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
-            payAsYouGoEnabled: payAsYouGoEnabled
-        )
+            payAsYouGoEnabled: payAsYouGoEnabled)
     }
 
     private static func extractCreditsUsed(from dict: [String: Any]) -> Double? {
@@ -294,29 +304,31 @@ public enum GrokApiCreditsFetcher {
 
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? ""
-            appendDebugLog("gRPC call failed with status \(httpResponse.statusCode): \(body)")
+            self.appendDebugLog("gRPC call failed with status \(httpResponse.statusCode): \(body)")
             throw GrokCreditsProbeError.commandFailed("gRPC HTTP \(httpResponse.statusCode): \(body)")
         }
 
-        let protobufPayload = extractProtobufPayload(from: data)
+        let protobufPayload = self.extractProtobufPayload(from: data)
         if protobufPayload.isEmpty {
             throw GrokCreditsProbeError.commandFailed("Empty protobuf payload from gRPC response")
         }
 
-        log.debug("gRPC GetGrokCreditsConfig returned \(protobufPayload.count) bytes of protobuf data")
+        self.log.debug("gRPC GetGrokCreditsConfig returned \(protobufPayload.count) bytes of protobuf data")
 
         // === TEMPORARY DEBUG LOGGING ===
         // Copy the line below and paste it somewhere safe when you see it in the logs.
         let hex = protobufPayload.map { String(format: "%02x", $0) }.joined()
-        log.info("RAW PROTOBUF HEX (copy this): \(hex)")
+        self.log.info("RAW PROTOBUF HEX (copy this): \(hex)")
 
         // Feed the Debug pane (Probe logs → Grok)
-        appendDebugLog("=== GetGrokCreditsConfig Response ===")
-        appendDebugLog("Response size: \(protobufPayload.count) bytes")
-        appendDebugLog("RAW HEX:\n\(hex)")
+        self.appendDebugLog("=== GetGrokCreditsConfig Response ===")
+        self.appendDebugLog("Response size: \(protobufPayload.count) bytes")
+        self.appendDebugLog("RAW HEX:\n\(hex)")
 
         let snapshot = try parseGrokCreditsConfigProtobuf(protobufPayload)
-        appendDebugLog("Parsed result → used: \(snapshot.creditsUsedPercent?.description ?? "nil")%, resets: \(snapshot.resetDescription ?? "nil")")
+        self
+            .appendDebugLog(
+                "Parsed result → used: \(snapshot.creditsUsedPercent?.description ?? "nil")%, resets: \(snapshot.resetDescription ?? "nil")")
         return snapshot
     }
 
@@ -329,9 +341,9 @@ public enum GrokApiCreditsFetcher {
         if flag != 0x00 { return Data() } // only handle uncompressed data frame for now
 
         let length = (Int(grpcWebData[1]) << 24) |
-                     (Int(grpcWebData[2]) << 16) |
-                     (Int(grpcWebData[3]) << 8)  |
-                     (Int(grpcWebData[4]))
+            (Int(grpcWebData[2]) << 16) |
+            (Int(grpcWebData[3]) << 8) |
+            Int(grpcWebData[4])
 
         let start = 5
         let end = min(start + length, grpcWebData.count)
@@ -351,13 +363,13 @@ public enum GrokApiCreditsFetcher {
         // The usage value is the first fixed32 (wire type 5, field 1) after the length-delimited wrapper.
         // It appears as `0d <4 bytes float32 little-endian>`.
         for i in 0..<(bytes.count - 4) {
-            if bytes[i] == 0x0d {
+            if bytes[i] == 0x0D {
                 let bitPattern = UInt32(bytes[i + 1]) |
-                                 (UInt32(bytes[i + 2]) << 8) |
-                                 (UInt32(bytes[i + 3]) << 16) |
-                                 (UInt32(bytes[i + 4]) << 24)
+                    (UInt32(bytes[i + 2]) << 8) |
+                    (UInt32(bytes[i + 3]) << 16) |
+                    (UInt32(bytes[i + 4]) << 24)
                 let floatValue = Float(bitPattern: bitPattern)
-                if floatValue >= 0 && floatValue <= 100 {
+                if floatValue >= 0, floatValue <= 100 {
                     creditsUsedPercent = Double(floatValue)
                     break
                 }
@@ -369,7 +381,7 @@ public enum GrokApiCreditsFetcher {
         // Field 5 (2a 06) = billingPeriodEnd  ← we specifically want this one
         var index = 0
         while index < bytes.count - 6 {
-            if bytes[index] == 0x2a && bytes[index + 1] == 0x06 && bytes[index + 2] == 0x08 {
+            if bytes[index] == 0x2A, bytes[index + 1] == 0x06, bytes[index + 2] == 0x08 {
                 // This is billingPeriodEnd
                 index += 3
                 var value: UInt64 = 0
@@ -389,7 +401,7 @@ public enum GrokApiCreditsFetcher {
                     resetDescription = formatter.string(from: resetsAt!)
                 }
                 index = pos
-            } else if bytes[index] == 0x22 && bytes[index + 1] == 0x06 && bytes[index + 2] == 0x08 {
+            } else if bytes[index] == 0x22, bytes[index + 1] == 0x06, bytes[index + 2] == 0x08 {
                 // billingPeriodStart (we ignore it for the reset date)
                 index += 3
                 var value: UInt64 = 0
@@ -412,7 +424,6 @@ public enum GrokApiCreditsFetcher {
             creditsUsedPercent: creditsUsedPercent,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
-            payAsYouGoEnabled: payAsYouGoEnabled
-        )
+            payAsYouGoEnabled: payAsYouGoEnabled)
     }
 }

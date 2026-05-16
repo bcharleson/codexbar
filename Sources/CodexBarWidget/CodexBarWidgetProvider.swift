@@ -81,6 +81,9 @@ enum ProviderChoice: String, AppEnum {
         case .deepseek: return nil // DeepSeek not yet supported in widgets
         case .codebuff: return nil // Codebuff not yet supported in widgets
         case .grok: return nil // Grok not yet supported in widgets
+        case .openai, .manus, .moonshot, .elevenlabs, .windsurf, .mimo, .doubao, .crof, .venice, .commandcode, .stepfun,
+             .bedrock:
+            return nil // Not yet supported in widgets
         }
     }
 }

@@ -287,6 +287,18 @@ private struct ProviderSwitchChip: View {
         case .deepseek: "DeepSeek"
         case .codebuff: "Codebuff"
         case .grok: "Grok"
+        case .openai: "OpenAI"
+        case .manus: "Manus"
+        case .moonshot: "Moonshot"
+        case .elevenlabs: "Eleven"
+        case .windsurf: "Windsurf"
+        case .mimo: "Mimo"
+        case .doubao: "Doubao"
+        case .crof: "Crof"
+        case .venice: "Venice"
+        case .commandcode: "Command"
+        case .stepfun: "StepFun"
+        case .bedrock: "Bedrock"
         }
     }
 }
@@ -656,6 +668,30 @@ enum WidgetColors {
             Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
         case .grok:
             Color(red: 30 / 255, green: 30 / 255, blue: 32 / 255) // Near-black Grok accent
+        case .openai:
+            Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255) // OpenAI green
+        case .manus:
+            Color.gray
+        case .moonshot:
+            Color(red: 0.2, green: 0.4, blue: 0.8)
+        case .elevenlabs:
+            Color(red: 0.2, green: 0.6, blue: 1.0)
+        case .windsurf:
+            Color(red: 0.1, green: 0.5, blue: 0.8)
+        case .mimo:
+            Color.gray
+        case .doubao:
+            Color(red: 0.13, green: 0.59, blue: 0.95)
+        case .crof:
+            Color(red: 0.18, green: 0.67, blue: 0.58)
+        case .venice:
+            Color(red: 0.2, green: 0.6, blue: 1.0)
+        case .commandcode:
+            Color.black
+        case .stepfun:
+            Color(red: 0.13, green: 0.59, blue: 0.95)
+        case .bedrock:
+            Color(red: 1, green: 0.6, blue: 0) // AWS orange
         }
     }
 }

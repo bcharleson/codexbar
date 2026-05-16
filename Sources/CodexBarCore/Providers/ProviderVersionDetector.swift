@@ -59,14 +59,14 @@ public enum ProviderVersionDetector {
 
         for path in candidates where FileManager.default.fileExists(atPath: path) {
             if let v = Self.run(path: path, args: ["--version"]) { return v }
-            if let v = Self.run(path: path, args: ["version"])   { return v }
-            if let v = Self.run(path: path, args: ["-v"])        { return v }
+            if let v = Self.run(path: path, args: ["version"]) { return v }
+            if let v = Self.run(path: path, args: ["-v"]) { return v }
         }
 
         if let path = TTYCommandRunner.which("grok") {
             if let v = Self.run(path: path, args: ["--version"]) { return v }
-            if let v = Self.run(path: path, args: ["version"])   { return v }
-            if let v = Self.run(path: path, args: ["-v"])        { return v }
+            if let v = Self.run(path: path, args: ["version"]) { return v }
+            if let v = Self.run(path: path, args: ["-v"]) { return v }
         }
 
         return nil

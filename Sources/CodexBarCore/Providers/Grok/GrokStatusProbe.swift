@@ -2,6 +2,7 @@ import Foundation
 
 public struct GrokUsageSnapshot: Sendable {
     public let billing: GrokBillingResponse?
+    public let directCredits: GrokCreditsSnapshot?
     public let credentials: GrokCredentials?
     public let localSummary: GrokLocalSessionSummary?
     public let cliVersion: String?
@@ -9,12 +10,14 @@ public struct GrokUsageSnapshot: Sendable {
 
     public init(
         billing: GrokBillingResponse?,
+        directCredits: GrokCreditsSnapshot? = nil,
         credentials: GrokCredentials?,
         localSummary: GrokLocalSessionSummary?,
         cliVersion: String?,
         updatedAt: Date)
     {
         self.billing = billing
+        self.directCredits = directCredits
         self.credentials = credentials
         self.localSummary = localSummary
         self.cliVersion = cliVersion
@@ -22,16 +25,21 @@ public struct GrokUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Primary window: monthly credit usage from billing config (preferred), otherwise nil.
+        // Primary window: prefer the official billing RPC response, then fall back
+        // to the direct web gRPC result (what users see on grok.com/?_s=usage).
         var primary: RateWindow?
-        if let billing,
-           let percent = billing.monthlyUsedPercent
-        {
+        if let billing, let percent = billing.monthlyUsedPercent {
             primary = RateWindow(
                 usedPercent: percent,
                 windowMinutes: nil,
                 resetsAt: billing.billingPeriodEndDate,
                 resetDescription: nil)
+        } else if let direct = directCredits, let percent = direct.creditsUsedPercent {
+            primary = RateWindow(
+                usedPercent: percent,
+                windowMinutes: nil,
+                resetsAt: direct.resetsAt,
+                resetDescription: direct.resetDescription)
         }
 
         let identity = ProviderIdentitySnapshot(
@@ -87,6 +95,8 @@ public struct GrokStatusProbe: Sendable {
 
         var billing: GrokBillingResponse?
         var rpcError: Error?
+
+        // 1. Preferred: official grok agent stdio JSON-RPC (x.ai/billing)
         do {
             let client = try GrokRPCClient(environment: env)
             defer { client.shutdown() }
@@ -94,6 +104,19 @@ public struct GrokStatusProbe: Sendable {
             billing = try await client.fetchBilling()
         } catch {
             rpcError = error
+        }
+
+        // 2. Strong fallback: direct web gRPC (the same call the grok.com/?_s=usage UI makes).
+        // This is what users mean when they say "it pulls credits from the web".
+        // We use the access token from the official Grok CLI session store.
+        var directCredits: GrokCreditsSnapshot?
+        if billing == nil {
+            do {
+                directCredits = try await GrokApiCreditsFetcher.fetch()
+            } catch {
+                // Record this as secondary diagnostic info (the RPC error is still primary for now)
+                if rpcError == nil { rpcError = error }
+            }
         }
 
         // Local fallback summary always succeeds (empty if no sessions yet).
@@ -117,6 +140,7 @@ public struct GrokStatusProbe: Sendable {
 
         return GrokUsageSnapshot(
             billing: billing,
+            directCredits: directCredits,
             credentials: Self.credentialsForSnapshot(credentials: credentials, billing: billing),
             localSummary: localSummary,
             cliVersion: cliVersion,

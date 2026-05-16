@@ -14,8 +14,8 @@ public struct GrokCreditsSnapshot: Sendable, Equatable {
         creditsUsedPercent: Double?,
         resetsAt: Date?,
         resetDescription: String?,
-        payAsYouGoEnabled: Bool
-    ) {
+        payAsYouGoEnabled: Bool)
+    {
         self.creditsUsedPercent = creditsUsedPercent
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
@@ -82,7 +82,7 @@ public enum GrokCreditsProbe {
     }
 
     private static func resolveGrokBinary() async throws -> String {
-        for path in grokBinaryCandidates {
+        for path in self.grokBinaryCandidates {
             if FileManager.default.fileExists(atPath: path) {
                 return path
             }
@@ -99,8 +99,8 @@ public enum GrokCreditsProbe {
     private static func runGrok(
         binary: String,
         arguments: [String],
-        timeout: TimeInterval
-    ) async throws -> String {
+        timeout: TimeInterval) async throws -> String
+    {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
         process.arguments = arguments
@@ -133,7 +133,7 @@ public enum GrokCreditsProbe {
         if process.terminationStatus != 0 {
             let errData = stderr.fileHandleForReading.readDataToEndOfFile()
             let errText = String(data: errData, encoding: .utf8) ?? ""
-            log.warning("grok usage command exited with code \(process.terminationStatus): \(errText)")
+            self.log.warning("grok usage command exited with code \(process.terminationStatus): \(errText)")
         }
 
         return text
@@ -154,7 +154,8 @@ public enum GrokCreditsProbe {
             if trimmed.contains("credits used:") {
                 if let percentPart = trimmed.components(separatedBy: "credits used:").last,
                    let numberStr = percentPart.components(separatedBy: "%").first?.trimmingCharacters(in: .whitespaces),
-                   let value = Double(numberStr) {
+                   let value = Double(numberStr)
+                {
                     creditsPercent = value
                 }
             }
@@ -193,7 +194,6 @@ public enum GrokCreditsProbe {
             creditsUsedPercent: creditsPercent,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
-            payAsYouGoEnabled: payAsYouGo
-        )
+            payAsYouGoEnabled: payAsYouGo)
     }
 }

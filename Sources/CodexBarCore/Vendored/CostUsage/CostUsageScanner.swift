@@ -233,10 +233,10 @@ enum CostUsageScanner {
                 filtered.claudeLogProviderFilter = .vertexAIOnly
             }
             return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
-        case .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba, .factory, .copilot,
-             .minimax, .kilo, .kiro, .kimi,
-             .kimik2, .augment, .jetbrains, .amp, .ollama, .synthetic, .openrouter, .warp, .perplexity, .abacus,
-             .mistral, .deepseek, .codebuff, .grok:
+        case .openai, .cursor, .opencode, .opencodego, .alibaba, .factory, .gemini, .antigravity, .copilot,
+             .zai, .minimax, .manus, .kimi, .kilo, .kiro, .augment, .jetbrains, .kimik2, .moonshot, .amp,
+             .ollama, .synthetic, .warp, .openrouter, .elevenlabs, .windsurf, .perplexity, .mimo, .doubao,
+             .abacus, .mistral, .deepseek, .codebuff, .crof, .venice, .commandcode, .stepfun, .bedrock, .grok:
             return emptyReport
         }
     }
