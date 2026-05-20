@@ -993,7 +993,6 @@ extension UsageStore {
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
                 .bedrock: "Bedrock debug log not yet implemented",
-                .grok: "Grok debug log not yet implemented",
                 .groq: "Groq debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
@@ -1071,9 +1070,11 @@ extension UsageStore {
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
+                case .grok:
+                    return await GrokApiCreditsFetcher.latestDebugLog
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
                      .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof,
-                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .grok, .groq, .llmproxy, .deepgram:
+                     .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock, .groq, .llmproxy, .deepgram:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }
