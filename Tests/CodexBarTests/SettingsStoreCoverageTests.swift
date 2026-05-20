@@ -75,6 +75,39 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `multi account menu layout persists and bridges legacy show all token accounts`() throws {
+        let suite = "SettingsStoreCoverageTests-multi-account-layout"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.multiAccountMenuLayout == .segmented)
+
+        initial.multiAccountMenuLayout = .stacked
+        #expect(defaults.string(forKey: "multiAccountMenuLayout") == MultiAccountMenuLayout.stacked.rawValue)
+        #expect(initial.showAllTokenAccountsInMenu)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.multiAccountMenuLayout == .stacked)
+        reloaded.showAllTokenAccountsInMenu = false
+        #expect(reloaded.multiAccountMenuLayout == .segmented)
+    }
+
+    @Test
+    func `legacy show all token accounts migrates to stacked layout`() throws {
+        let suite = "SettingsStoreCoverageTests-legacy-token-account-layout"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "showAllTokenAccountsInMenu")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        #expect(settings.multiAccountMenuLayout == .stacked)
+    }
+
+    @Test
     func `token account mutations apply side effects`() {
         let settings = Self.makeSettingsStore()
 
@@ -135,6 +168,26 @@ struct SettingsStoreCoverageTests {
         #expect(settings.tokenAccounts(for: .copilot).isEmpty)
         #expect(settings.copilotAPIToken.isEmpty)
         #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == nil)
+    }
+
+    @Test
+    func `copilot enterprise host persists in provider config`() throws {
+        let suite = "SettingsStoreCoverageTests-copilot-enterprise-host"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        first.copilotEnterpriseHost = "https://octocorp.ghe.com/login"
+        #expect(first.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+        #expect(first.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == "octocorp.ghe.com")
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.copilotEnterpriseHost == "https://octocorp.ghe.com/login")
+
+        second.copilotEnterpriseHost = "github.com"
+        #expect(second.copilotEnterpriseHost == "github.com")
+        #expect(second.copilotSettingsSnapshot(tokenOverride: nil).enterpriseHost == nil)
     }
 
     @Test
@@ -379,6 +432,57 @@ struct SettingsStoreCoverageTests {
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = true
         #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+    }
+
+    @Test
+    func `upsert antigravity oauth account adds and updates active token account`() throws {
+        let settings = Self.makeSettingsStore()
+        let first = AntigravityOAuthCredentials(
+            accessToken: "first-access",
+            refreshToken: "first-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "user@example.com")
+        let updated = AntigravityOAuthCredentials(
+            accessToken: "updated-access",
+            refreshToken: "first-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_100),
+            email: "user@example.com")
+
+        settings.upsertAntigravityOAuthAccount(first)
+        settings.upsertAntigravityOAuthAccount(updated)
+
+        let accounts = settings.tokenAccounts(for: .antigravity)
+        #expect(accounts.count == 1)
+        let account = try #require(accounts.first)
+        #expect(account.label == "user@example.com")
+        #expect(account.externalIdentifier == "user@example.com")
+        #expect(settings.selectedTokenAccount(for: .antigravity)?.id == account.id)
+
+        let decoded = try #require(AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: account.token))
+        #expect(decoded.accessToken == "updated-access")
+    }
+
+    @Test
+    func `upsert antigravity oauth account does not merge missing email accounts by fallback label`() {
+        let settings = Self.makeSettingsStore()
+        let first = AntigravityOAuthCredentials(
+            accessToken: "first-access",
+            refreshToken: "first-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: nil)
+        let second = AntigravityOAuthCredentials(
+            accessToken: "second-access",
+            refreshToken: "second-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_100),
+            email: nil)
+
+        settings.upsertAntigravityOAuthAccount(first)
+        settings.upsertAntigravityOAuthAccount(second)
+
+        let accounts = settings.tokenAccounts(for: .antigravity)
+        #expect(accounts.count == 2)
+        #expect(accounts.map(\.label) == ["Google Account 1", "Google Account 2"])
+        #expect(settings.selectedTokenAccount(for: .antigravity)?.id == accounts.last?.id)
     }
 
     private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {

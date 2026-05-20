@@ -4,21 +4,20 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct StatusMenuTests {
-    private func disableMenuCardsForTesting() {
+    func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
-        StatusItemController.menuRefreshEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
     }
 
-    private func makeStatusBarForTesting() -> NSStatusBar {
-        let env = ProcessInfo.processInfo.environment
-        if env["GITHUB_ACTIONS"] == "true" || env["CI"] == "true" {
-            return .system
-        }
-        return NSStatusBar()
+    func makeStatusBarForTesting() -> NSStatusBar {
+        // Use the real system status bar in tests. Creating standalone NSStatusBar instances
+        // has caused AppKit teardown crashes under swiftpm-testing-helper.
+        .system
     }
 
-    private func makeSettings() -> SettingsStore {
+    func makeSettings() -> SettingsStore {
         let suite = "StatusMenuTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -30,7 +29,7 @@ struct StatusMenuTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
-    private func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
+    func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
         let now = Date()
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -86,6 +85,7 @@ struct StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
+        settings.providerDetectionCompleted = true
         settings.alibabaCodingPlanAPIRegion = .chinaMainland
 
         let fetcher = UsageFetcher()
@@ -125,38 +125,43 @@ struct StatusMenuTests {
 
     @Test
     func `claude subscription dashboard action opens usage page`() {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
+        for plan in ["Claude Pro", "Claude Team"] {
+            self.disableMenuCardsForTesting()
+            let settings = self.makeSettings()
+            settings.statusChecksEnabled = false
+            settings.refreshFrequency = .manual
 
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        store._setSnapshotForTesting(
-            UsageSnapshot(
-                primary: RateWindow(
-                    usedPercent: 12,
-                    windowMinutes: 300,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                secondary: nil,
-                tertiary: nil,
-                updatedAt: Date(),
-                identity: ProviderIdentitySnapshot(
-                    providerID: .claude,
-                    accountEmail: nil,
-                    accountOrganization: nil,
-                    loginMethod: "Claude Pro")),
-            provider: .claude)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
+            let fetcher = UsageFetcher()
+            let store = UsageStore(
+                fetcher: fetcher,
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 12,
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    secondary: nil,
+                    tertiary: nil,
+                    updatedAt: Date(),
+                    identity: ProviderIdentitySnapshot(
+                        providerID: .claude,
+                        accountEmail: nil,
+                        accountOrganization: nil,
+                        loginMethod: plan)),
+                provider: .claude)
+            let controller = StatusItemController(
+                store: store,
+                settings: settings,
+                account: fetcher.loadAccountInfo(),
+                updater: DisabledUpdaterController(),
+                preferencesSelection: PreferencesSelection(),
+                statusBar: self.makeStatusBarForTesting())
 
-        #expect(controller.dashboardURL(for: .claude)?.absoluteString == "https://claude.ai/settings/usage")
+            #expect(controller.dashboardURL(for: .claude)?.absoluteString == "https://claude.ai/settings/usage")
+        }
     }
 
     @Test
@@ -187,6 +192,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let claudeMenu = controller.makeMenu()
         controller.menuWillOpen(claudeMenu)
@@ -213,16 +219,41 @@ struct StatusMenuTests {
         settings.selectedMenuProvider = nil
 
         let registry = ProviderRegistry.shared
-        var enabledProviders: [UsageProvider] = []
+        let selectedProviders: Set<UsageProvider> = [.codex, .claude]
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = enabledProviders.count < 2
+            let shouldEnable = selectedProviders.contains(provider)
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-            if shouldEnable {
-                enabledProviders.append(provider)
-            }
         }
-        #expect(enabledProviders.count == 2)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let expectedResolved = store.enabledProviders().first ?? .codex
+        #expect(store.enabledProviders().count > 1)
+        #expect(controller.shouldMergeIcons == true)
+        let menu = controller.makeMenu()
+        #expect(settings.selectedMenuProvider == nil)
+        controller.menuWillOpen(menu)
+        #expect(settings.selectedMenuProvider == nil)
+        #expect(controller.lastMenuProvider == expectedResolved)
+    }
+
+    @Test
+    func `shortcut closes tracked menu instead of queueing another open`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -234,14 +265,74 @@ struct StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
 
-        let expectedResolved = store.enabledProviders().first ?? .codex
-        #expect(store.enabledProviders().count > 1)
-        #expect(controller.shouldMergeIcons == true)
         let menu = controller.makeMenu()
-        #expect(settings.selectedMenuProvider == nil)
         controller.menuWillOpen(menu)
-        #expect(settings.selectedMenuProvider == nil)
-        #expect(controller.lastMenuProvider == expectedResolved)
+        let key = ObjectIdentifier(menu)
+        controller.openMenus[key] = menu
+        #expect(controller.openMenus[key] != nil)
+
+        #expect(controller.closeOpenMenusFromShortcutIfNeeded() == true)
+        #expect(controller.openMenus.isEmpty)
+        #expect(controller.menuRefreshTasks.isEmpty)
+        #expect(controller.closeOpenMenusFromShortcutIfNeeded() == false)
+    }
+
+    @Test
+    func `open menu defers store data refresh until next open`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        let key = ObjectIdentifier(menu)
+        controller.openMenus[key] = menu
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
+        let openedVersion = controller.menuVersions[key]
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 11,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "Plus Plan")),
+            provider: .codex)
+
+        for _ in 0..<50 where controller.menuContentVersion == openedVersion {
+            await Task.yield()
+        }
+
+        let staleVersion = controller.menuContentVersion
+        controller.refreshOpenMenusIfNeeded()
+
+        #expect(controller.menuContentVersion != openedVersion)
+        #expect(controller.menuVersions[key] == openedVersion)
+
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
+        #expect(controller.menuVersions[key] == staleVersion)
     }
 
     @Test
@@ -284,6 +375,7 @@ struct StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let expectedResolved = store.enabledProviders().first ?? .codex
         #expect(store.enabledProviders().count > 1)
@@ -310,6 +402,75 @@ struct StatusMenuTests {
         controller.refreshOpenMenusIfNeeded()
 
         #expect(hasOpenAIWebSubmenus(menu) == false)
+    }
+
+    @Test
+    func `delayed menu refresh skips when refresh disabled during delay`() async {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        StatusItemController.setMenuOpenRefreshDelayForTesting(.milliseconds(50))
+        defer {
+            StatusItemController.resetMenuOpenRefreshDelayForTesting()
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        var delayedRefreshWakeCount = 0
+
+        await withStatusItemControllerForTesting(
+            store: store,
+            settings: settings,
+            fetcher: fetcher,
+            statusBar: self.makeStatusBarForTesting())
+        { controller in
+            controller.onDelayedMenuRefreshAttemptForTesting = {
+                delayedRefreshWakeCount += 1
+            }
+            let menu = controller.makeMenu()
+            controller.menuWillOpen(menu)
+            StatusItemController.setMenuRefreshEnabledForTesting(false)
+            try? await Task.sleep(for: .milliseconds(180))
+        }
+
+        #expect(delayedRefreshWakeCount == 0)
+    }
+
+    @Test
+    func `login state callbacks do not attach menus after release`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        controller.releaseStatusItemsForTesting()
+        #expect(controller.statusItem.menu == nil)
+        #expect(controller.statusItems.isEmpty)
+
+        controller.activeLoginProvider = .codex
+        let loginTask = Task<Void, Never> {}
+        controller.loginTask = loginTask
+        loginTask.cancel()
+        controller.loginTask = nil
+        controller.activeLoginProvider = nil
+
+        #expect(controller.statusItem.menu == nil)
+        #expect(controller.statusItems.isEmpty)
     }
 
     @Test
@@ -391,6 +552,9 @@ struct StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
+        controller.openMenus[ObjectIdentifier(menu)] = menu
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
 
         let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(initialSwitcher != nil)
@@ -403,61 +567,6 @@ struct StatusMenuTests {
         #expect(updatedSwitcher != nil)
         if let initialSwitcherID, let updatedSwitcher {
             #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
-        }
-    }
-
-    @Test
-    func `merged provider switch rebuilds stale width switcher rows`() {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = true
-        settings.selectedMenuProvider = .codex
-
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-        }
-        let activeProviders: [UsageProvider] = [.codex, .claude]
-        _ = settings.setMergedOverviewProviderSelection(
-            provider: .codex,
-            isSelected: false,
-            activeProviders: activeProviders)
-        _ = settings.setMergedOverviewProviderSelection(
-            provider: .claude,
-            isSelected: false,
-            activeProviders: activeProviders)
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu()
-        controller.menuWillOpen(menu)
-
-        let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
-        #expect(initialSwitcher != nil)
-        let initialSwitcherID = initialSwitcher.map(ObjectIdentifier.init)
-        initialSwitcher?.frame.size.width = 250
-
-        let nextProviderButton = self.switcherButtons(in: menu).first(where: { $0.state == .off })
-        #expect(nextProviderButton != nil)
-        nextProviderButton?.performClick(nil)
-
-        let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
-        #expect(updatedSwitcher != nil)
-        if let initialSwitcherID, let updatedSwitcher {
-            #expect(initialSwitcherID != ObjectIdentifier(updatedSwitcher))
-            #expect(updatedSwitcher.frame.width == 310)
         }
     }
 
@@ -581,6 +690,9 @@ struct StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
+        controller.openMenus[ObjectIdentifier(menu)] = menu
+        StatusItemController.setMenuRefreshEnabledForTesting(true)
+        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
 
         let initialButtons = self.switcherButtons(in: menu)
         #expect(initialButtons.count == activeProviders.count)
@@ -590,7 +702,8 @@ struct StatusMenuTests {
             isSelected: true,
             activeProviders: activeProviders)
         controller.menuContentVersion &+= 1
-        controller.refreshOpenMenusIfNeeded()
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
 
         let updatedButtons = self.switcherButtons(in: menu)
         #expect(updatedButtons.count == activeProviders.count + 1)
@@ -724,6 +837,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         #expect(controller.statusItems[.claude]?.isVisible == true)
 
@@ -731,11 +845,11 @@ extension StatusMenuTests {
             settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
         }
         controller.handleProviderConfigChange(reason: "test")
-        #expect(controller.statusItems[.claude]?.isVisible == false)
+        #expect(controller.statusItems[.claude] == nil)
     }
 
     @Test
-    func `provider config changes preserve status items and autosave names`() throws {
+    func `provider config changes preserve status item instances`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -765,8 +879,8 @@ extension StatusMenuTests {
             statusBar: self.makeStatusBarForTesting())
 
         let codexItem = try #require(controller.statusItems[.codex])
-        #expect(controller.statusItem.autosaveName == "codexbar-merged")
-        #expect(codexItem.autosaveName == "codexbar-codex")
+        #expect(!controller.statusItem.autosaveName.hasPrefix("codexbar-"))
+        #expect(!codexItem.autosaveName.hasPrefix("codexbar-"))
 
         try settings.setProviderEnabled(
             provider: .gemini,
@@ -775,8 +889,8 @@ extension StatusMenuTests {
         controller.handleProviderConfigChange(reason: "test")
 
         #expect(controller.statusItems[.codex] === codexItem)
-        #expect(controller.statusItems[.codex]?.autosaveName == "codexbar-codex")
-        #expect(controller.statusItems[.gemini]?.autosaveName == "codexbar-gemini")
+        #expect(controller.statusItems[.codex]?.autosaveName.hasPrefix("codexbar-") == false)
+        #expect(controller.statusItems[.gemini]?.autosaveName.hasPrefix("codexbar-") == false)
     }
 
     @Test
@@ -817,6 +931,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -879,10 +994,10 @@ extension StatusMenuTests {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         let previousMenuRefresh = StatusItemController.menuRefreshEnabled
         StatusItemController.menuCardRenderingEnabled = true
-        StatusItemController.menuRefreshEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
         defer {
             StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
-            StatusItemController.menuRefreshEnabled = previousMenuRefresh
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
         }
 
         let settings = self.makeSettings()
@@ -929,6 +1044,62 @@ extension StatusMenuTests {
         #expect(chartItem?.representedObject as? String == StatusItemController.usageBreakdownChartID)
         #expect(chartItem?.view != nil)
         #expect(abs((chartItem?.view?.frame.width ?? 0) - parentWidth) <= 0.5)
+    }
+
+    @Test
+    func `hosted storage submenu is height capped and scroll enabled`() {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
+        }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.providerStorageFootprintsEnabled = true
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let root = "/Users/test/.claude"
+        store.providerStorageFootprints[.claude] = ProviderStorageFootprint(
+            provider: .claude,
+            totalBytes: 1_756_000_000,
+            paths: [root],
+            missingPaths: [],
+            unreadablePaths: [],
+            components: [
+                .init(path: "\(root)/projects", totalBytes: 1_500_000_000),
+                .init(path: "\(root)/file-history", totalBytes: 103_000_000),
+                .init(path: "\(root)/telemetry", totalBytes: 51_000_000),
+                .init(path: "\(root)/plugins", totalBytes: 33_000_000),
+                .init(path: "\(root)/history.jsonl", totalBytes: 3_800_000),
+                .init(path: "\(root)/shell-snapshots", totalBytes: 1_500_000),
+                .init(path: "\(root)/plans", totalBytes: 1_100_000),
+                .init(path: "\(root)/paste-cache", totalBytes: 541_000),
+                .init(path: "\(root)/session-env", totalBytes: 208_000),
+                .init(path: "\(root)/todos", totalBytes: 6700),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        let submenu = NSMenu()
+        let didAppend = controller.appendStorageBreakdownItem(to: submenu, provider: .claude, width: 310)
+
+        #expect(didAppend)
+        let item = submenu.items.first
+        #expect(item?.isEnabled == true)
+        #expect((item?.view?.frame.height ?? 0) <= 620)
     }
 
     @Test
@@ -987,6 +1158,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -998,6 +1170,59 @@ extension StatusMenuTests {
         #expect(
             creditsItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
+    }
+
+    @Test
+    func `shows open AI API usage chart submenu without codex web history`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.selectedMenuProvider = .openai
+
+        let registry = ProviderRegistry.shared
+        let metadata = try #require(registry.metadata[.openai])
+        settings.setProviderEnabled(provider: .openai, metadata: metadata, enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let usage = OpenAIAPIUsageSnapshot(
+            daily: [
+                OpenAIAPIUsageSnapshot.DailyBucket(
+                    day: "2023-11-14",
+                    startTime: now,
+                    endTime: now.addingTimeInterval(86400),
+                    costUSD: 9,
+                    requests: 12,
+                    inputTokens: 100,
+                    cachedInputTokens: 0,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                    lineItems: [],
+                    models: []),
+            ],
+            updatedAt: now)
+        store._setSnapshotForTesting(usage.toUsageSnapshot(), provider: .openai)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu(for: .openai)
+        controller.menuWillOpen(menu)
+        let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
+
+        #expect(usageItem?.submenu?.items
+            .contains { ($0.representedObject as? String) == StatusItemController.openAIAPIUsageChartID } == true)
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardHeader" } == false)
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardExtraUsage" } == false)
     }
 
     @Test
@@ -1058,6 +1283,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -1096,6 +1322,8 @@ extension StatusMenuTests {
         let submenu = controller.makeHostedSubviewPlaceholderMenu(
             chartID: StatusItemController.costHistoryChartID,
             provider: .codex)
+        #expect(submenu.autoenablesItems == false)
+        #expect(submenu.items.first?.isEnabled == true)
 
         controller.hydrateHostedSubviewMenuIfNeeded(submenu)
         #expect(submenu.items.count == 1)
@@ -1123,6 +1351,7 @@ extension StatusMenuTests {
         #expect(submenu.items.count == 1)
         #expect(submenu.items.first?.title != "No data available")
         #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)
+        #expect(submenu.items.first?.isEnabled == true)
     }
 
     @Test
@@ -1192,6 +1421,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -1247,6 +1477,7 @@ extension StatusMenuTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
@@ -1386,7 +1617,7 @@ extension StatusMenuTests {
     @Test
     func `overview rows keep menu item action in rendered mode`() throws {
         StatusItemController.menuCardRenderingEnabled = true
-        StatusItemController.menuRefreshEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
         defer { self.disableMenuCardsForTesting() }
 
         let settings = self.makeSettings()

@@ -59,7 +59,8 @@ struct ProviderSettingsDescriptorTests {
                         lastRunAtByID.removeValue(forKey: id)
                     }
                 },
-                requestConfirmation: { _ in })
+                requestConfirmation: { _ in },
+                runLoginFlow: {})
 
             let impl = try #require(ProviderCatalog.implementation(for: provider))
             let toggles = impl.settingsToggles(context: context)
@@ -115,7 +116,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
@@ -209,7 +211,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
@@ -258,7 +261,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -300,7 +304,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
@@ -362,7 +367,8 @@ struct ProviderSettingsDescriptorTests {
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
             setLastAppActiveRunAt: { _, _ in },
-            requestConfirmation: { _ in })
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
 
         let implementation = KiloProviderImplementation()
         let toggles = implementation.settingsToggles(context: context)
@@ -372,6 +378,54 @@ struct ProviderSettingsDescriptorTests {
         #expect(toggles.isEmpty)
         #expect(pickers.contains(where: { $0.id == "kilo-usage-source" }))
         #expect(fields.contains(where: { $0.id == "kilo-api-key" }))
+    }
+
+    @Test
+    func `deepgram exposes api key and project id fields`() throws {
+        let suite = "ProviderSettingsDescriptorTests-deepgram"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        let context = ProviderSettingsContext(
+            provider: .deepgram,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in },
+            runLoginFlow: {})
+
+        let implementation = DeepgramProviderImplementation()
+        let fields = implementation.settingsFields(context: context)
+
+        #expect(fields.contains(where: { $0.id == "deepgram-api-key" }))
+        #expect(fields.contains(where: { $0.id == "deepgram-project-id" }))
+
+        // Basic presence checks for Deepgram settings fields (layout copied from OpenRouter)
+        _ = try #require(fields.first(where: { $0.id == "deepgram-project-id" }))
+        _ = try #require(fields.first(where: { $0.id == "deepgram-api-key" }))
     }
 
     @Test
