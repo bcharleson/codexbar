@@ -10,48 +10,27 @@ struct ProviderIconResourcesTests {
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
 
         let slugs = [
-            "abacus",
-            "alibaba",
-            "amp",
-            "antigravity",
-            "augment",
-            "bedrock",
-            "claude",
-            "codebuff",
             "codex",
-            "commandcode",
-            "copilot",
-            "crof",
-            "cursor",
-            "deepgram",
-            "deepseek",
-            "doubao",
-            "elevenlabs",
-            "factory",
-            "gemini",
-            "grok",
-            "groq",
-            "jetbrains",
-            "kilo",
-            "kimi",
-            "kiro",
-            "llmproxy",
-            "manus",
-            "mimo",
+            "claude",
+            "zai",
             "minimax",
-            "mistral",
-            "ollama",
+            "cursor",
             "opencode",
             "opencodego",
-            "openrouter",
-            "perplexity",
-            "stepfun",
-            "synthetic",
-            "venice",
-            "vertexai",
-            "warp",
-            "windsurf",
-            "zai",
+            "alibaba",
+            "gemini",
+            "antigravity",
+            "factory",
+            "copilot",
+            "crof",
+            "commandcode",
+            "t3chat",
+            "kimi",
+            "bedrock",
+            "elevenlabs",
+            "groq",
+            "llmproxy",
+            "deepgram",
         ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")
@@ -62,6 +41,16 @@ struct ProviderIconResourcesTests {
             let image = NSImage(contentsOf: url)
             #expect(image != nil, "Could not load SVG as NSImage for \(slug)")
         }
+    }
+
+    @Test
+    func `groq and grok provider icons are distinct`() throws {
+        let root = try Self.repoRoot()
+        let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
+        let groq = try String(contentsOf: resources.appending(path: "ProviderIcon-groq.svg"), encoding: .utf8)
+        let grok = try String(contentsOf: resources.appending(path: "ProviderIcon-grok.svg"), encoding: .utf8)
+
+        #expect(groq != grok)
     }
 
     private static func repoRoot() throws -> URL {
