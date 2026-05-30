@@ -45,20 +45,42 @@ struct CodexManagedOpenAIWebRefreshTests {
             CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
 
         let refreshTask = Task {
             await store.refresh(forceTokenUsage: false)
             await completion.markCompleted()
         }
 
-        try? await Task.sleep(for: .milliseconds(200))
+        let didStart = await blocker.waitUntilStartedWithin(count: 1, timeout: .seconds(60))
+        #expect(didStart == true)
+        if !didStart {
+            refreshTask.cancel()
+            return
+        }
 
+        let completed = await completion.waitUntilCompleted(timeout: .seconds(2))
+        #expect(completed == true)
+        if !completed {
+            refreshTask.cancel()
+            await blocker.resumeNext(with: .failure(ManagedDashboardTestError.networkTimeout))
+            return
+        }
+        await refreshTask.value
+
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
         #expect(await blocker.startedCount() == 1)
-        #expect(await completion.isCompleted == true)
 
         await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
             signedInEmail: managedAccount.email,
@@ -71,7 +93,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             accountPlan: "Pro",
             updatedAt: Date())))
 
-        await refreshTask.value
+        await backgroundTask.value
     }
 
     @Test
@@ -247,7 +269,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await dashboardBlocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -319,7 +341,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             settings: settings,
             startupBehavior: .testing)
         let blocker = BlockingManagedOpenAIDashboardLoader()
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -393,7 +415,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             startupBehavior: .testing)
         store.openAIDashboardCookieImportStatus =
             "OpenAI cookies are for other@example.com, not managed@example.com."
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             throw ManagedDashboardTestError.networkTimeout
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -425,8 +447,10 @@ struct CodexManagedOpenAIWebRefreshTests {
             startupBehavior: .testing)
         let blocker = BlockingManagedOpenAIDashboardLoader()
         let importTracker = OpenAIDashboardImportCallTracker()
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
-            try await blocker.awaitResult()
+        var allowNavigationTimeoutRetries: [Bool] = []
+        store._test_openAIDashboardLoaderOverride = { _, _, allowNavigationTimeoutRetry, _ in
+            allowNavigationTimeoutRetries.append(allowNavigationTimeoutRetry)
+            return try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
         store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
@@ -462,8 +486,63 @@ struct CodexManagedOpenAIWebRefreshTests {
         await refreshTask.value
 
         #expect(await blocker.startedCount() == 2)
+        #expect(allowNavigationTimeoutRetries == [true, true])
         #expect(store.openAIDashboard?.creditsRemaining == 25)
         #expect(store.lastOpenAIDashboardError == nil)
+    }
+
+    @Test
+    func `background navigation timeout skips immediate WebKit retry`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-background-timeout-no-retry")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let importTracker = OpenAIDashboardImportCallTracker()
+        var allowNavigationTimeoutRetries: [Bool] = []
+        store._test_openAIDashboardLoaderOverride = { _, _, allowNavigationTimeoutRetry, _ in
+            allowNavigationTimeoutRetries.append(allowNavigationTimeoutRetry)
+            return try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            _ = await importTracker.recordCall()
+            return OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let refreshTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: false, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        await blocker.resumeNext(with: .failure(URLError(.timedOut)))
+        await refreshTask.value
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(allowNavigationTimeoutRetries == [false])
+        #expect(await importTracker.callCount() == 0)
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardError?.contains("timed out") == true)
     }
 
     @Test
@@ -486,7 +565,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             settings: settings,
             startupBehavior: .testing)
         let blocker = BlockingManagedOpenAIDashboardLoader()
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -538,7 +617,7 @@ struct CodexManagedOpenAIWebRefreshTests {
             startupBehavior: .testing)
         store.openAIDashboardCookieImportStatus =
             "OpenAI cookies are for other@example.com, not managed@example.com."
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             throw ManagedDashboardTestError.networkTimeout
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -643,6 +722,17 @@ actor RefreshCompletionProbe {
     func markCompleted() {
         self.isCompleted = true
     }
+
+    func waitUntilCompleted(timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while !self.isCompleted {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
 }
 
 actor BlockingManagedOpenAIDashboardLoader {
@@ -664,6 +754,17 @@ actor BlockingManagedOpenAIDashboardLoader {
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
+    }
+
+    func waitUntilStartedWithin(count: Int = 1, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.started < count {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
     }
 
     func startedCount() -> Int {
@@ -748,6 +849,10 @@ private actor OpenAIDashboardImportCallTracker {
         await withCheckedContinuation { continuation in
             self.waiters.append((count: count, continuation: continuation))
         }
+    }
+
+    func callCount() -> Int {
+        self.calls
     }
 
     private func resumeReadyWaiters() {

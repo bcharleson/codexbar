@@ -195,6 +195,7 @@ final class UsageStore {
     @ObservationIgnored var _test_openAIDashboardLoaderOverride: (@MainActor (
         String?,
         @escaping (String) -> Void,
+        Bool,
         TimeInterval) async throws -> OpenAIDashboardSnapshot)?
     @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
@@ -1482,7 +1483,7 @@ extension UsageStore {
     }
 
     private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
@@ -1493,6 +1494,20 @@ extension UsageStore {
 
         if let override = self._test_tokenUsageRefreshOverride {
             await override(provider, force)
+            return
+        }
+
+        if Self.tokenCostRequiresProviderSnapshot(provider) {
+            if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
+                self.tokenSnapshots[provider] = snapshot
+                self.tokenErrors[provider] = nil
+                self.tokenFailureGates[provider]?.recordSuccess()
+                self.persistWidgetSnapshot(reason: "token-usage")
+            } else {
+                self.tokenSnapshots.removeValue(forKey: provider)
+                self.tokenErrors[provider] = nil
+                self.tokenFailureGates[provider]?.reset()
+            }
             return
         }
 
@@ -1547,9 +1562,9 @@ extension UsageStore {
                     settings: self.settings,
                     tokenOverride: nil)
                 : self.environmentBase
-            // CostUsageFetcher scans local Codex session logs from this machine. That data is
+            // Codex cost usage scans local session logs from this machine. That data is
             // intentionally presented as provider-level local telemetry rather than managed-account
-            // remote state, so managed Codex account selection does not retarget this fetch.
+            // remote state, so managed Codex account selection does not retarget that fetch.
             // If the UI later needs account-scoped token history, it should label and source that
             // separately instead of silently changing the meaning of this section.
             let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
@@ -1579,8 +1594,10 @@ extension UsageStore {
                 return
             }
             let duration = Date().timeIntervalSince(startedAt)
-            let sessionCost = snapshot.sessionCostUSD.map(UsageFormatter.usdString) ?? "—"
-            let monthCost = snapshot.last30DaysCostUSD.map(UsageFormatter.usdString) ?? "—"
+            let sessionCost = snapshot.sessionCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let monthCost = snapshot.last30DaysCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
             let durationText = String(format: "%.2f", duration)
             let message =
                 "cost usage success provider=\(providerText) " +

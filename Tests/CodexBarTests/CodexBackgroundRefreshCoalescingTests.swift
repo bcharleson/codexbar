@@ -33,17 +33,15 @@ struct CodexBackgroundRefreshCoalescingTests {
             await firstCompletion.markCompleted()
         }
         await blocker.waitUntilStarted(count: 1)
-        #expect(await firstCompletion.isCompleted == true)
+        #expect(await firstCompletion.waitUntilCompleted() == true)
 
         let secondRefreshTask = Task {
             await store.refresh(forceTokenUsage: false)
             await secondCompletion.markCompleted()
         }
 
-        try? await Task.sleep(for: .milliseconds(200))
-
+        #expect(await secondCompletion.waitUntilCompleted() == true)
         #expect(await blocker.startedCount() == 1)
-        #expect(await secondCompletion.isCompleted == true)
 
         await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
 
@@ -160,7 +158,7 @@ struct CodexBackgroundRefreshCoalescingTests {
             CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
-        store._test_openAIDashboardLoaderOverride = { _, _, _ in
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             try await blocker.awaitResult()
         }
         defer { store._test_openAIDashboardLoaderOverride = nil }
@@ -170,17 +168,15 @@ struct CodexBackgroundRefreshCoalescingTests {
             await firstCompletion.markCompleted()
         }
         await blocker.waitUntilStarted(count: 1)
-        #expect(await firstCompletion.isCompleted == true)
+        #expect(await firstCompletion.waitUntilCompleted() == true)
 
         let secondRefreshTask = Task {
             await store.refresh(forceTokenUsage: false)
             await secondCompletion.markCompleted()
         }
 
-        try? await Task.sleep(for: .milliseconds(200))
-
+        #expect(await secondCompletion.waitUntilCompleted() == true)
         #expect(await blocker.startedCount() == 1)
-        #expect(await secondCompletion.isCompleted == true)
 
         let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
         await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
