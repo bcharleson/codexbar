@@ -27,12 +27,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     public var timeout: TimeInterval = 10.0
     public var homeDirectory: String
     public var environment: [String: String]
+    public var credentialPreference: AntigravityCredentialSourcePreference
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
     public var oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
     public var credentialsUpdateHandler: @Sendable (AntigravityOAuthCredentials) async throws -> Void
 
     private static let log = CodexBarLog.logger(LogCategories.antigravity)
     private static let userAgent = "antigravity"
+    /// `retrieveUserQuota` rejects `User-Agent: antigravity` (HTTP 403); Gemini CLI UA works.
+    private static let quotaUserAgent = "GeminiCLI"
     private static let baseURL = "https://cloudcode-pa.googleapis.com"
     private static let loadCodeAssistEndpoint = "\(baseURL)/v1internal:loadCodeAssist"
     private static let onboardUserEndpoint = "\(baseURL)/v1internal:onboardUser"
@@ -60,6 +63,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         timeout: TimeInterval = 10.0,
         homeDirectory: String = NSHomeDirectory(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        credentialPreference: AntigravityCredentialSourcePreference = .automatic,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
             try await ProviderHTTPClient.shared.data(for: request)
         },
@@ -71,13 +75,17 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         self.timeout = timeout
         self.homeDirectory = homeDirectory
         self.environment = environment
+        self.credentialPreference = credentialPreference
         self.dataLoader = dataLoader
         self.oauthClientResolver = oauthClientResolver
         self.credentialsUpdateHandler = credentialsUpdateHandler
     }
 
     public func fetch() async throws -> AntigravityStatusSnapshot {
-        let source = try Self.resolveCredentialSource(homeDirectory: self.homeDirectory, environment: self.environment)
+        let source = try Self.resolveCredentialSource(
+            homeDirectory: self.homeDirectory,
+            environment: self.environment,
+            preference: self.credentialPreference)
         guard let credentials = source.credentials else {
             throw AntigravityRemoteFetchError.notLoggedIn
         }
@@ -320,7 +328,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             accessToken: accessToken,
             body: body,
             timeout: timeout,
-            dataLoader: dataLoader)
+            dataLoader: dataLoader,
+            userAgent: Self.quotaUserAgent)
     }
 
     private static func resolveProjectID(
@@ -386,7 +395,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         accessToken: String,
         body: [String: Any],
         timeout: TimeInterval,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        userAgent: String = Self.userAgent) async throws
         -> Response
     {
         guard let url = URL(string: endpoint) else {
@@ -398,7 +408,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         request.timeoutInterval = timeout
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let httpResponse = try await ProviderHTTPTransportHandler(dataLoader).response(for: request)
@@ -529,7 +539,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
     private static func resolveCredentialSource(
         homeDirectory: String,
-        environment: [String: String]) throws -> (
+        environment: [String: String],
+        preference: AntigravityCredentialSourcePreference) throws -> (
         credentials: AntigravityOAuthCredentials?,
         store: AntigravityOAuthCredentialsStore?)
     {
@@ -541,7 +552,22 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             }
             return (credentials, nil)
         }
-        return try (primaryStore.load(), primaryStore)
+
+        switch preference {
+        case .agyCLI:
+            guard let credentials = try AntigravityAgyCredentials.loadCredentials(homeDirectory: homeDirectory) else {
+                throw AntigravityRemoteFetchError.notLoggedIn
+            }
+            return (credentials, nil)
+        case .codexbarStore:
+            return try (primaryStore.load(), primaryStore)
+        case .automatic:
+            // Use only the Antigravity/CodexBar credential store. Do NOT silently fall back to agy CLI
+            // (Gemini) credentials: a user who is not signed into Antigravity but happens to have Gemini
+            // OAuth creds on disk must not have those used for Antigravity usage. Callers that genuinely
+            // want the agy session pass `.agyCLI` explicitly (AntigravityAgyStatusProbe does).
+            return try (primaryStore.load(), primaryStore)
+        }
     }
 
     private struct RefreshResult {
