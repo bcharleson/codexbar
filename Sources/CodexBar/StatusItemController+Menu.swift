@@ -85,6 +85,11 @@ extension StatusItemController {
         self.cancelDeferredMenuInteractionRefreshTask()
         self.cancelClosedMenuRebuild(menu)
 
+        // Track whether this is the root menu opening (no menus were open). Only the root open rebuilds
+        // all content from current data, so the readiness baseline is re-anchored only here — re-anchoring
+        // on a nested submenu open could mask a pending refresh for the already-open parent menu.
+        let menuTrackingWasIdle = self.openMenus.isEmpty
+
         if self.isHostedSubviewMenu(menu) {
             self.hydrateHostedSubviewMenuIfNeeded(menu)
             self.refreshHostedSubviewHeights(in: menu)
@@ -95,6 +100,9 @@ extension StatusItemController {
                 // Intentionally skip open-menu tracking when refresh is disabled (tests).
                 // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
                 self.openMenus[ObjectIdentifier(menu)] = menu
+                if menuTrackingWasIdle {
+                    self.resyncMenuAdjunctReadinessBaseline()
+                }
             }
             // Removed redundant async refresh - single pass is sufficient after initial layout
             return
@@ -123,11 +131,21 @@ extension StatusItemController {
             self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "parent menu open")
         }
 
+        let menuWasFreshBeforeOpen = !self.menuNeedsRefresh(menu)
         self.refreshMenuForOpenIfNeeded(menu, provider: provider)
         if self.isMenuRefreshEnabled {
             // Intentionally skip open-menu tracking when refresh is disabled (tests).
             // If refresh is re-enabled while this menu stays open, it will not be backfilled until next open.
             self.openMenus[ObjectIdentifier(menu)] = menu
+            // Only re-anchor when the opened menu actually shows current data. During an in-flight provider
+            // refresh `refreshMenuForOpenIfNeeded` can preserve stale content; resyncing the baseline to
+            // live store data in that case would mask the refresh-completion update (#1351).
+            if menuTrackingWasIdle, !self.menuNeedsRefresh(menu) {
+                self.resyncMenuAdjunctReadinessBaselineForRootOpen(
+                    menu,
+                    provider: provider,
+                    menuWasFreshBeforeOpen: menuWasFreshBeforeOpen)
+            }
             self.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
             // Only schedule refresh after menu is registered as open - refreshNow is called async
             self.scheduleOpenMenuRefresh(for: menu)
@@ -992,6 +1010,7 @@ extension StatusItemController {
                     self.lastMenuProvider = provider
                 }
                 self.lastMergedSwitcherSelection = selection
+                self.refreshProviderSelectionDependentUI()
                 self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: provider)
             })
         let item = NSMenuItem()
@@ -1541,11 +1560,20 @@ extension StatusItemController {
 
         for item in menu.items {
             guard let view = item.view else { continue }
-            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
-            view.layoutSubtreeIfNeeded()
-            let height = view.fittingSize.height
+            let height = self.hostedSubviewFittingHeight(for: view, width: width)
             view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         }
+    }
+
+    /// Measures the natural height of a hosted submenu view at the given width using the live
+    /// view that will actually be displayed. Hosted chart items used to spin up a second,
+    /// throwaway `NSHostingController` purely to size the chart even though every build path
+    /// immediately re-measures the live view via `fittingSize`; that extra SwiftUI hierarchy was
+    /// pure overhead on a popup-menu hot path, so callers now size the displayed view directly.
+    func hostedSubviewFittingHeight(for view: NSView, width: CGFloat) -> CGFloat {
+        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        view.layoutSubtreeIfNeeded()
+        return view.fittingSize.height
     }
 
     @objc func menuCardNoOp(_ sender: NSMenuItem) {
@@ -1574,8 +1602,8 @@ extension StatusItemController {
         self.lastMergedSwitcherSelection = nil
         self.selectedMenuProvider = provider
         self.lastMenuProvider = provider
+        self.refreshProviderSelectionDependentUI()
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
-        self.applyIcon(phase: nil)
     }
 }
