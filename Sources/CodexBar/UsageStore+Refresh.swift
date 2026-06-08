@@ -23,7 +23,7 @@ extension UsageStore {
     func refreshProvider(_ provider: UsageProvider, allowDisabled: Bool = false) async {
         self.prepareRefreshState(for: provider)
         guard let spec = await self.providerRefreshSpec(provider) else { return }
-        let codexExpectedGuard = provider == .codex ? self.currentCodexAccountScopedRefreshGuard() : nil
+        let codexExpectedGuard = provider == .codex ? self.freshCodexAccountScopedRefreshGuard() : nil
 
         if !spec.isEnabled(), !allowDisabled {
             await self.clearDisabledProviderRefreshState(provider)
@@ -105,7 +105,10 @@ extension UsageStore {
                 if claudeCredentialsChanged {
                     self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
                 }
-                let backfilled = scoped.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider])
+                let resetBackfillSource = provider == .codex
+                    ? self.codexLastKnownResetSnapshot(matching: codexExpectedGuard)
+                    : self.lastKnownResetSnapshots[provider]
+                let backfilled = scoped.backfillingResetTimes(from: resetBackfillSource)
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
                 self.lastKnownResetSnapshots[provider] = backfilled
@@ -148,6 +151,7 @@ extension UsageStore {
             {
                 return
             }
+            self.recordStartupConnectivityRetryableFailure(error)
             if claudeCredentialsChanged {
                 await self.clearClaudeCredentialDerivedStateForCredentialSwap()
             }
@@ -299,6 +303,16 @@ extension UsageStore {
             let shouldSurface =
                 self.failureGates[provider]?
                     .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+            let preservesClaudeWebSessionFailure =
+                provider == .claude &&
+                hadPriorData &&
+                Self.isClaudeWebSessionRefreshFailure(error)
+            if preservesClaudeWebSessionFailure,
+               !shouldSurface
+            {
+                self.errors[provider] = nil
+                return
+            }
             if provider == .claude,
                preservesPriorData,
                Self.isClaudeUsageProbeTimeout(error)
@@ -312,7 +326,7 @@ extension UsageStore {
             }
             if shouldSurface {
                 self.errors[provider] = error.localizedDescription
-                if !preservesPriorData {
+                if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider)
                 }
             } else {
@@ -359,9 +373,48 @@ extension UsageStore {
         }
     }
 
+    static func startupConnectivityRetryDelay(forAttempt attempt: Int) -> TimeInterval? {
+        let delays: [TimeInterval] = [15, 45, 120, 300]
+        guard attempt >= 1, attempt <= delays.count else { return nil }
+        return delays[attempt - 1]
+    }
+
+    static func isStartupConnectivityRetryableError(_ error: Error) -> Bool {
+        if error is CancellationError { return false }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorTimedOut,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorNotConnectedToInternet,
+                 NSURLErrorCannotFindHost,
+                 NSURLErrorCannotConnectToHost,
+                 NSURLErrorDNSLookupFailed:
+                return true
+            default:
+                return false
+            }
+        }
+
+        let message = error.localizedDescription.lowercased()
+        return message.contains("timed out") ||
+            message.contains("timeout") ||
+            message.contains("network connection was lost") ||
+            message.contains("not connected to the internet") ||
+            message.contains("cannot find host") ||
+            message.contains("cannot connect to host") ||
+            message.contains("dns lookup")
+    }
+
     private static func isClaudeUsageProbeTimeout(_ error: Error) -> Bool {
         if case ClaudeStatusProbeError.timedOut = error { return true }
         return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
+    }
+
+    private static func isClaudeWebSessionRefreshFailure(_ error: Error) -> Bool {
+        if case ClaudeWebAPIFetcher.FetchError.unauthorized = error { return true }
+        return error.localizedDescription == ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription
     }
 
     nonisolated static func isPermissionPromptWaiting(_ error: Error) -> Bool {

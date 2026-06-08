@@ -24,6 +24,8 @@ extension StatusItemController {
             },
             id: "usageHistorySubmenu",
             width: width,
+            heightCacheScope: provider.rawValue,
+            heightCacheFingerprint: "usageHistorySubmenu:\(provider.rawValue)",
             submenu: submenu,
             submenuIndicatorAlignment: .trailing,
             submenuIndicatorTopPadding: 0)
@@ -55,6 +57,7 @@ extension StatusItemController {
             let chartItem = NSMenuItem()
             chartItem.isEnabled = true
             chartItem.representedObject = Self.usageHistoryChartID
+            chartItem.toolTip = provider.rawValue
             submenu.addItem(chartItem)
             return true
         }
@@ -73,6 +76,7 @@ extension StatusItemController {
         chartItem.view = hosting
         chartItem.isEnabled = true
         chartItem.representedObject = Self.usageHistoryChartID
+        chartItem.toolTip = provider.rawValue
         submenu.addItem(chartItem)
         return true
     }

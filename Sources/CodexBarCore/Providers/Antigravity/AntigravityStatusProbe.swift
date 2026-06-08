@@ -37,25 +37,48 @@ private enum AntigravityModelFamily {
     case unknown
 }
 
+private struct AntigravityModelVersion: Comparable {
+    let major: Int
+    let minor: Int
+
+    static func < (lhs: AntigravityModelVersion, rhs: AntigravityModelVersion) -> Bool {
+        if lhs.major != rhs.major { return lhs.major < rhs.major }
+        return lhs.minor < rhs.minor
+    }
+}
+
 private struct AntigravityNormalizedModel {
     let quota: AntigravityModelQuota
     let family: AntigravityModelFamily
     let selectionPriority: Int?
+    let isImage: Bool
+    let isLite: Bool
+    let isAutocomplete: Bool
+    let version: AntigravityModelVersion?
+    let tier: Int
+}
+
+public enum AntigravityModelQuotaSource: Sendable {
+    case local
+    case remote
 }
 
 public struct AntigravityStatusSnapshot: Sendable {
     public let modelQuotas: [AntigravityModelQuota]
     public let accountEmail: String?
     public let accountPlan: String?
+    public let source: AntigravityModelQuotaSource
 
     public init(
         modelQuotas: [AntigravityModelQuota],
         accountEmail: String?,
-        accountPlan: String?)
+        accountPlan: String?,
+        source: AntigravityModelQuotaSource = .remote)
     {
         self.modelQuotas = modelQuotas
         self.accountEmail = accountEmail
         self.accountPlan = accountPlan
+        self.source = source
     }
 
     public func toUsageSnapshot() throws -> UsageSnapshot {
@@ -64,13 +87,19 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let normalized = Self.normalizedModels(self.modelQuotas)
-        let primaryQuota = Self.representative(for: .claude, in: normalized)
-        let secondaryQuota = Self.representative(for: .geminiPro, in: normalized)
-        let tertiaryQuota = Self.representative(for: .geminiFlash, in: normalized)
+        let summaryModels: [AntigravityNormalizedModel] = switch self.source {
+        case .local:
+            normalized
+        case .remote:
+            normalized.filter(Self.isRemoteSummaryCandidate)
+        }
+        let primaryQuota = Self.representative(for: .claude, in: summaryModels)
+        let secondaryQuota = Self.representative(for: .geminiPro, in: summaryModels)
+        let tertiaryQuota = Self.representative(for: .geminiFlash, in: summaryModels)
         let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil,
                                                        tertiaryQuota == nil
         {
-            Self.fallbackRepresentative(in: normalized)
+            Self.fallbackRepresentative(in: summaryModels)
         } else {
             nil
         }
@@ -80,12 +109,21 @@ public struct AntigravityStatusSnapshot: Sendable {
         let tertiary = tertiaryQuota.map(Self.rateWindow(for:))
 
         // primary/secondary/tertiary keep the 3-family summary for back-compat.
-        // extraRateWindows carries every model quota loss-free, including families
-        // with no dedicated slot and variants the representative selection collapses.
-        let extraWindows = self.modelQuotas
-            .sorted(by: Self.modelQuotaSortPrecedes)
-            .map { quota in
-                NamedRateWindow(id: quota.modelId, title: quota.label, window: Self.rateWindow(for: quota))
+        // extraRateWindows carries a source-aware set: the full curated list for
+        // .local (verified junk-free), and a filtered list for .remote (catalog noise
+        // hidden, consumed quota always kept). Sorted by family→version→tier.
+        let shownModels: [AntigravityNormalizedModel] = switch self.source {
+        case .local:
+            normalized
+        case .remote:
+            normalized.filter { m in
+                Self.isRemoteSummaryCandidate(m) || (m.quota.remainingFraction ?? 1.0) < 0.999
+            }
+        }
+        let extraWindows = shownModels
+            .sorted(by: Self.modelOrderPrecedes)
+            .map { m in
+                NamedRateWindow(id: m.quota.modelId, title: m.quota.label, window: Self.rateWindow(for: m.quota))
             }
 
         let identity = ProviderIdentitySnapshot(
@@ -110,12 +148,51 @@ public struct AntigravityStatusSnapshot: Sendable {
             resetDescription: quota.resetDescription)
     }
 
-    private static func modelQuotaSortPrecedes(_ lhs: AntigravityModelQuota, _ rhs: AntigravityModelQuota) -> Bool {
-        let labelOrder = lhs.label.caseInsensitiveCompare(rhs.label)
-        if labelOrder != .orderedSame {
-            return labelOrder == .orderedAscending
+    private static func modelOrderPrecedes(
+        _ lhs: AntigravityNormalizedModel,
+        _ rhs: AntigravityNormalizedModel) -> Bool
+    {
+        // 1. Family rank: claude=0, geminiPro=1, geminiFlash=2, unknown=3
+        let lhsFamilyRank = Self.familyRank(lhs.family)
+        let rhsFamilyRank = Self.familyRank(rhs.family)
+        if lhsFamilyRank != rhsFamilyRank {
+            return lhsFamilyRank < rhsFamilyRank
         }
-        return lhs.modelId.caseInsensitiveCompare(rhs.modelId) == .orderedAscending
+
+        // 2. Version descending (newer first); nil version sorts after non-nil
+        switch (lhs.version, rhs.version) {
+        case let (.some(lv), .some(rv)):
+            if lv != rv {
+                return lv > rv
+            }
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            break
+        }
+
+        // 3. Tier ascending: High(0) < Medium(1) < Low(2)
+        if lhs.tier != rhs.tier {
+            return lhs.tier < rhs.tier
+        }
+
+        // 4. Label tiebreaker
+        return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
+    }
+
+    private static func familyRank(_ family: AntigravityModelFamily) -> Int {
+        switch family {
+        case .claude: 0
+        case .geminiPro: 1
+        case .geminiFlash: 2
+        case .unknown: 3
+        }
+    }
+
+    private static func isRemoteSummaryCandidate(_ model: AntigravityNormalizedModel) -> Bool {
+        model.family != .unknown && !model.isLite && !model.isAutocomplete && !model.isImage
     }
 
     private static func normalizedModels(_ models: [AntigravityModelQuota]) -> [AntigravityNormalizedModel] {
@@ -130,6 +207,8 @@ public struct AntigravityStatusSnapshot: Sendable {
         let isLite = modelId.contains("lite") || label.contains("lite")
         let isAutocomplete = modelId.contains("autocomplete") || label.contains("autocomplete") || modelId
             .hasPrefix("tab_")
+        let isImage = modelId.contains("image") || label.contains("image")
+        let isSelectableTextModel = !isLite && !isAutocomplete && !isImage
         let isLowPriorityGeminiPro = modelId.contains("pro-low")
             || (label.contains("pro") && label.contains("low"))
 
@@ -137,23 +216,59 @@ public struct AntigravityStatusSnapshot: Sendable {
         case .claude:
             0
         case .geminiPro:
-            if isLowPriorityGeminiPro {
+            if isLowPriorityGeminiPro, isSelectableTextModel {
                 0
-            } else if !isLite, !isAutocomplete {
+            } else if isSelectableTextModel {
                 1
             } else {
                 nil
             }
         case .geminiFlash:
-            (!isLite && !isAutocomplete) ? 0 : nil
+            isSelectableTextModel ? 0 : nil
         case .unknown:
             nil
         }
 
+        let version = Self.parseVersion(from: label)
+        let tier = Self.parseTier(from: label, modelId: modelId)
+
         return AntigravityNormalizedModel(
             quota: quota,
             family: family,
-            selectionPriority: selectionPriority)
+            selectionPriority: selectionPriority,
+            isImage: isImage,
+            isLite: isLite,
+            isAutocomplete: isAutocomplete,
+            version: version,
+            tier: tier)
+    }
+
+    private static func parseVersion(from label: String) -> AntigravityModelVersion? {
+        // Accept either "." or "-" between major and minor so a raw model id used as the
+        // label when displayName is missing (e.g. "gemini-3-1-pro-low") still parses 3.1.
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+)(?:[.\-](\d+))?"#) else { return nil }
+        let nsLabel = label as NSString
+        let range = NSRange(location: 0, length: nsLabel.length)
+        guard let match = regex.firstMatch(in: label, options: [], range: range) else { return nil }
+        let majorRange = Range(match.range(at: 1), in: label)
+        guard let majorRange, let major = Int(label[majorRange]) else { return nil }
+        let minor: Int = if match.range(at: 2).location != NSNotFound,
+                            let minorRange = Range(match.range(at: 2), in: label),
+                            let parsed = Int(label[minorRange])
+        {
+            parsed
+        } else {
+            0
+        }
+        return AntigravityModelVersion(major: major, minor: minor)
+    }
+
+    private static func parseTier(from label: String, modelId: String) -> Int {
+        let combined = label + " " + modelId
+        if combined.contains("high") { return 0 }
+        if combined.contains("medium") { return 1 }
+        if combined.contains("low") { return 2 }
+        return 1
     }
 
     private static func representative(
@@ -382,7 +497,8 @@ public struct AntigravityStatusProbe: Sendable {
         return AntigravityStatusSnapshot(
             modelQuotas: models,
             accountEmail: email,
-            accountPlan: planName)
+            accountPlan: planName,
+            source: .local)
     }
 
     static func parsePlanInfoSummary(_ data: Data) throws -> AntigravityPlanInfoSummary? {
@@ -411,7 +527,7 @@ public struct AntigravityStatusProbe: Sendable {
         }
         let modelConfigs = response.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
-        return AntigravityStatusSnapshot(modelQuotas: models, accountEmail: nil, accountPlan: nil)
+        return AntigravityStatusSnapshot(modelQuotas: models, accountEmail: nil, accountPlan: nil, source: .local)
     }
 
     private static func quotaFromConfig(_ config: ModelConfig) -> AntigravityModelQuota? {
@@ -443,7 +559,7 @@ public struct AntigravityStatusProbe: Sendable {
 
     // MARK: - Port detection
 
-    private struct ProcessInfoResult {
+    struct ProcessInfoResult {
         let pid: Int
         let extensionPort: Int?
         let extensionServerCSRFToken: String?
@@ -476,14 +592,25 @@ public struct AntigravityStatusProbe: Sendable {
             timeout: timeout,
             label: "antigravity-ps")
 
-        let lines = result.stdout.split(separator: "\n")
-        var sawAntigravity = false
+        return try Self.processInfo(fromProcessListOutput: result.stdout)
+    }
+
+    static func processInfo(fromProcessListOutput output: String) throws -> ProcessInfoResult {
+        let lines = output.split(separator: "\n")
+        var sawTokenlessIDE = false
         for line in lines {
             let text = String(line)
             guard let match = Self.matchProcessLine(text) else { continue }
-            guard Self.isAntigravityLanguageServerCommandLine(match.command) else { continue }
-            sawAntigravity = true
-            guard let token = Self.extractFlag("--csrf_token", from: match.command) else { continue }
+            guard let kind = Self.antigravityProcessKind(match.command) else { continue }
+            // The IDE language server authenticates local requests with a
+            // `--csrf_token` and must keep requiring it: skip a tokenless IDE
+            // match so a later valid IDE server can still be found (and surface
+            // `missingCSRFToken` if none is). The CLI's language server exposes
+            // no token flag and needs none, so an empty token is allowed there.
+            guard let token = Self.resolvedCSRFToken(forKind: kind, command: match.command) else {
+                sawTokenlessIDE = true
+                continue
+            }
             let port = Self.extractPort("--extension_server_port", from: match.command)
             let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: match.command)
             return ProcessInfoResult(
@@ -494,7 +621,7 @@ public struct AntigravityStatusProbe: Sendable {
                 commandLine: match.command)
         }
 
-        if sawAntigravity {
+        if sawTokenlessIDE {
             throw AntigravityStatusProbeError.missingCSRFToken
         }
         throw AntigravityStatusProbeError.notRunning
@@ -513,14 +640,61 @@ public struct AntigravityStatusProbe: Sendable {
         return ProcessLineMatch(pid: pid, command: String(parts[1]))
     }
 
+    enum AntigravityProcessKind: Equatable {
+        /// IDE language server (`language_server*`). Requires a `--csrf_token`.
+        case ide
+        /// CLI language server (`agy` / `antigravity-cli`). Needs no CSRF token.
+        case cli
+    }
+
     static func isAntigravityLanguageServerCommandLine(_ command: String) -> Bool {
+        self.antigravityProcessKind(command) != nil
+    }
+
+    /// Classify a process command line as the Antigravity IDE language server,
+    /// the Antigravity CLI language server, or neither. The IDE match takes
+    /// precedence so its CSRF-token requirement is preserved.
+    static func antigravityProcessKind(_ command: String) -> AntigravityProcessKind? {
         let lower = command.lowercased()
-        return Self.isLanguageServerCommandLine(lower) && Self.isAntigravityCommandLine(lower)
+        if Self.isLanguageServerCommandLine(lower), Self.isAntigravityCommandLine(lower) {
+            return .ide
+        }
+        if Self.isAntigravityCLICommandLine(lower) {
+            return .cli
+        }
+        return nil
+    }
+
+    /// Resolve the CSRF token to use for a matched process, or `nil` when the
+    /// match must be skipped. IDE matches keep requiring `--csrf_token`
+    /// (tokenless IDE matches are skipped). CLI matches accept an empty token
+    /// because the CLI's language server requires none.
+    static func resolvedCSRFToken(forKind kind: AntigravityProcessKind, command: String) -> String? {
+        if let token = extractFlag("--csrf_token", from: command) {
+            return token
+        }
+        switch kind {
+        case .ide: return nil
+        case .cli: return ""
+        }
     }
 
     private static func isLanguageServerCommandLine(_ lowerCommand: String) -> Bool {
         let pattern = #"(^|[/\\])language_server(_macos|\.exe)?(\s|$)"#
         return lowerCommand.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// The Antigravity CLI (`agy` / `antigravity-cli`) hosts the same language
+    /// server locally as the IDE, but launches it without a `--csrf_token` flag
+    /// and under a different process name. Match it so usage can be probed when
+    /// only the CLI is running.
+    private static func isAntigravityCLICommandLine(_ lowerCommand: String) -> Bool {
+        let cliPathPattern = #"(^|[/\\])(antigravity-cli|antigravity_cli)([\s/\\]|$)"#
+        if lowerCommand.range(of: cliPathPattern, options: .regularExpression) != nil {
+            return true
+        }
+        let agyPattern = #"(^|[/\\])agy(\s|$)"#
+        return lowerCommand.range(of: agyPattern, options: .regularExpression) != nil
     }
 
     private static func isAntigravityCommandLine(_ command: String) -> Bool {

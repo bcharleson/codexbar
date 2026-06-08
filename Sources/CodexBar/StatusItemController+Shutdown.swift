@@ -46,19 +46,27 @@ extension StatusItemController {
         for task in self.menuRefreshTasks.values {
             task.cancel()
         }
+        self.cancelAllClosedMenuRebuilds()
         for task in self.openMenuRebuildTasks.values {
             task.cancel()
         }
+        self.openMenuInvalidationRetryTask?.cancel()
+        self.openMenuInvalidationRetryTask = nil
     }
 
     private func clearShutdownMenuState() {
         self.removeProviderSwitcherShortcutMonitor()
         self.menuRefreshTasks.removeAll(keepingCapacity: false)
+        self.closedMenuRebuildTasks.removeAll(keepingCapacity: false)
+        self.closedMenuRebuildTokens.removeAll(keepingCapacity: false)
+        self.closedMenusDeferredUntilNextOpen.removeAll(keepingCapacity: false)
         self.openMenuRebuildTasks.removeAll(keepingCapacity: false)
         self.openMenuRebuildTokens.removeAll(keepingCapacity: false)
         self.openMenuRebuildsClosingHostedSubviewMenus.removeAll(keepingCapacity: false)
+        self.parentMenuRebuildsDeferredDuringTracking.removeAll(keepingCapacity: false)
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
+        self.menuCardHeightCache.removeAll(keepingCapacity: false)
         self.menuProviders.removeAll(keepingCapacity: false)
         self.menuVersions.removeAll(keepingCapacity: false)
         self.providerMenus.removeAll(keepingCapacity: false)

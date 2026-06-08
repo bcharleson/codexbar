@@ -2,6 +2,15 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+enum UsageMenuCardLayout {
+    static let horizontalPadding: CGFloat = 20
+    static let headerOnlyVerticalPadding: CGFloat = 7
+    static let sectionTopPadding: CGFloat = 6
+    static let sectionBottomPadding: CGFloat = 6
+    static let headerLineSpacing: CGFloat = 4
+    static let headerColumnSpacing: CGFloat = 12
+}
+
 /// SwiftUI card used inside the NSMenu to mirror Apple's rich menu panels.
 struct UsageMenuCardView: View {
     struct Model {
@@ -220,9 +229,17 @@ struct UsageMenuCardView: View {
                 .padding(.bottom, self.model.creditsText == nil ? 6 : 0)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, 2)
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(
+            .top,
+            self.hasDetails
+                ? UsageMenuCardLayout.sectionTopPadding
+                : UsageMenuCardLayout.headerOnlyVerticalPadding)
+        .padding(
+            .bottom,
+            self.hasDetails
+                ? UsageMenuCardLayout.sectionBottomPadding
+                : UsageMenuCardLayout.headerOnlyVerticalPadding)
         .frame(width: self.width, alignment: .leading)
     }
 
@@ -238,8 +255,8 @@ private struct UsageMenuCardHeaderView: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: UsageMenuCardLayout.headerLineSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: UsageMenuCardLayout.headerColumnSpacing) {
                 Text(self.model.providerName).font(.headline)
                     .fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.tail).layoutPriority(1)
@@ -249,7 +266,7 @@ private struct UsageMenuCardHeaderView: View {
                     .lineLimit(1).truncationMode(.middle)
             }
             let subtitleAlignment: VerticalAlignment = self.model.subtitleStyle == .error ? .top : .firstTextBaseline
-            HStack(alignment: subtitleAlignment) {
+            HStack(alignment: subtitleAlignment, spacing: UsageMenuCardLayout.headerColumnSpacing) {
                 Text(self.model.subtitleText)
                     .font(.footnote)
                     .foregroundStyle(self.subtitleColor)
@@ -465,10 +482,19 @@ struct UsageMenuCardHeaderSectionView: View {
                 Divider()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, self.model.subtitleStyle == .error ? 2 : 0)
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(.top, UsageMenuCardLayout.headerOnlyVerticalPadding)
+        .padding(.bottom, self.headerBottomPadding)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    private var headerBottomPadding: CGFloat {
+        if self.model.subtitleStyle == .error {
+            return UsageMenuCardLayout.sectionBottomPadding
+        }
+        return self.showDivider
+            ? UsageMenuCardLayout.sectionBottomPadding
+            : UsageMenuCardLayout.headerOnlyVerticalPadding
     }
 }
 
@@ -508,7 +534,7 @@ struct UsageMenuCardUsageSectionView: View {
                 Divider()
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.top, 10)
         .padding(.bottom, self.bottomPadding)
         .frame(width: self.width, alignment: .leading)
@@ -535,7 +561,7 @@ struct UsageMenuCardCreditsSectionView: View {
                     Divider()
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
             .padding(.top, self.topPadding)
             .padding(.bottom, self.bottomPadding)
             .frame(width: self.width, alignment: .leading)
@@ -641,7 +667,7 @@ struct UsageMenuCardCostSectionView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
                 .padding(.top, self.topPadding)
                 .padding(.bottom, self.bottomPadding)
                 .frame(width: self.width, alignment: .leading)
@@ -662,7 +688,7 @@ struct UsageMenuCardExtraUsageSectionView: View {
                 ProviderCostContent(
                     section: providerCost,
                     progressColor: self.model.progressColor)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
                     .padding(.top, self.topPadding)
                     .padding(.bottom, self.bottomPadding)
                     .frame(width: self.width, alignment: .leading)
@@ -819,8 +845,10 @@ extension UsageMenuCardView.Model {
     }
 
     private static func usageNotes(input: Input) -> [String] {
+        let subscriptionNotes = self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider)
+
         if input.provider == .kiro {
-            return kiroUsageNotes(input: input)
+            return kiroUsageNotes(input: input) + subscriptionNotes
         }
 
         if input.provider == .kilo {
@@ -834,24 +862,24 @@ extension UsageMenuCardView.Model {
             {
                 notes.append(L("Using CLI fallback"))
             }
-            return notes
+            return notes + subscriptionNotes
         }
 
         if input.provider == .mimo, input.snapshot != nil {
             return [
                 L("Balance updates in near-real time (up to 5 min lag)"),
                 L("Daily billing data finalizes at 07:00 UTC"),
-            ]
+            ] + subscriptionNotes
         }
 
         if let notes = apiProviderUsageNotes(input: input) {
-            return notes
+            return notes + subscriptionNotes
         }
 
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
-            return []
+            return subscriptionNotes
         }
 
         var notes = Self.openRouterSpendNotes(openRouter)
@@ -863,7 +891,35 @@ extension UsageMenuCardView.Model {
         case .unavailable:
             notes.append(L("API key limit unavailable right now"))
         }
-        return notes
+        return notes + subscriptionNotes
+    }
+
+    private static func subscriptionMetadataNotes(snapshot: UsageSnapshot?, provider: UsageProvider) -> [String] {
+        guard let snapshot else { return [] }
+        if let renewsAt = snapshot.subscriptionRenewsAt {
+            return [String(format: L("Renews: %@"), self.subscriptionDateString(renewsAt, provider: provider))]
+        }
+        if let expiresAt = snapshot.subscriptionExpiresAt {
+            return [String(format: L("Plan expires: %@"), self.subscriptionDateString(expiresAt, provider: provider))]
+        }
+        return []
+    }
+
+    private static func subscriptionDateString(_ date: Date, provider: UsageProvider) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.timeZone = self.subscriptionDateTimeZone(provider: provider)
+        formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+        return formatter.string(from: date)
+    }
+
+    private static func subscriptionDateTimeZone(provider: UsageProvider) -> TimeZone {
+        switch provider {
+        case .minimax:
+            TimeZone(identifier: "Asia/Shanghai") ?? .current
+        default:
+            .current
+        }
     }
 
     private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
@@ -926,12 +982,30 @@ extension UsageMenuCardView.Model {
     }
 
     private static func planDisplay(_ text: String, for provider: UsageProvider) -> String {
+        if provider == .minimax {
+            return self.miniMaxPlanDisplay(text)
+        }
         let cleaned = if provider == .codex {
             CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
         } else {
             UsageFormatter.cleanPlanName(text)
         }
         return cleaned.isEmpty ? text : cleaned
+    }
+
+    private static func miniMaxPlanDisplay(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.lowercased()
+        if normalized.contains("tokenplanplus") || normalized.contains("token plan plus") {
+            return "Plus"
+        }
+        if normalized.contains("tokenplanmax") || normalized.contains("token plan max") {
+            return "Max"
+        }
+        if normalized.contains("tokenplanultra") || normalized.contains("token plan ultra") {
+            return "Ultra"
+        }
+        return trimmed
     }
 
     private static func kiloLoginPass(snapshot: UsageSnapshot?) -> String? {
@@ -1031,7 +1105,8 @@ extension UsageMenuCardView.Model {
         }
         if input.provider == .minimax {
             if let minimaxUsage = snapshot.minimaxUsage {
-                if let services = minimaxUsage.services, !services.isEmpty {
+                let services = minimaxUsage.orderedQuotaServices
+                if !services.isEmpty {
                     return Self.minimaxMetrics(services: services, input: input)
                 }
             }
@@ -1081,6 +1156,7 @@ extension UsageMenuCardView.Model {
             let opusResetText: String? = input.provider == .perplexity
                 ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
+            let tertiaryPaceDetail = Self.cursorBillingCyclePaceDetail(window: opus, input: input)
             metrics.append(Metric(
                 id: "tertiary",
                 title: labels.tertiary,
@@ -1088,10 +1164,10 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 resetText: opusResetText,
                 detailText: tertiaryDetailText,
-                detailLeftText: nil,
-                detailRightText: nil,
-                pacePercent: nil,
-                paceOnTop: true,
+                detailLeftText: tertiaryPaceDetail?.leftLabel,
+                detailRightText: tertiaryPaceDetail?.rightLabel,
+                pacePercent: tertiaryPaceDetail?.pacePercent,
+                paceOnTop: tertiaryPaceDetail?.paceOnTop ?? true,
                 warningMarkerPercents: Self.warningMarkerPercents(
                     thresholds: input.quotaWarningThresholds[.weekly],
                     showUsed: input.usageBarsShowUsed)))
@@ -1244,6 +1320,12 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if let paceDetail = Self.cursorBillingCyclePaceDetail(window: primary, input: input) {
+            primaryDetailLeft = paceDetail.leftLabel
+            primaryDetailRight = paceDetail.rightLabel
+            primaryPacePercent = paceDetail.pacePercent
+            primaryPaceOnTop = paceDetail.paceOnTop
+        }
         if input.provider == .synthetic,
            let regen = Self.syntheticRollingRegenDetail(
                window: primary,
@@ -1344,6 +1426,13 @@ extension UsageMenuCardView.Model {
            !detail.isEmpty
         {
             paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
+        }
+        if let cursorPaceDetail = Self.cursorBillingCyclePaceDetail(
+            window: weekly,
+            input: input,
+            pace: input.weeklyPace)
+        {
+            paceDetail = cursorPaceDetail
         }
         // Perplexity bonus credits don't reset; show balance without "Resets" prefix.
         if input.provider == .perplexity,

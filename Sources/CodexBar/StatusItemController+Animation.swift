@@ -10,7 +10,6 @@ extension StatusItemController {
     static let loadingAnimationPhaseIncrement: Double =
         2.7 / StatusItemController.loadingAnimationFPS
     private static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
-
     func needsMenuBarIconAnimation() -> Bool {
         if self.shouldMergeIcons {
             let primaryProvider = self.primaryProviderForUnifiedIcon()
@@ -233,7 +232,7 @@ extension StatusItemController {
     }
 
     @discardableResult
-    func applyIcon(phase: Double?) -> Bool { // swiftlint:disable:this function_body_length
+    func applyIcon(phase: Double?) -> Bool {
         guard let button = self.statusItem.button else { return false }
 
         let style = self.store.iconStyle
@@ -270,17 +269,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: primaryProvider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
-        var credits: Double? =
-            codexProjection?.menuBarFallback == .creditsBalance
-                ? self.store.codexMenuBarCreditsRemaining(
-                    snapshotOverride: snapshot,
-                    now: snapshot?.updatedAt ?? Date())
-                : nil
+        var credits = self.menuBarCreditsRemainingForIcon(provider: primaryProvider, snapshot: snapshot)
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
 
@@ -338,6 +327,9 @@ extension StatusItemController {
                 "anim=\(needsAnimation ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
+                // AppKit can lose button title/image-position state independently of the cached render signature.
+                // Keep the cheap title path self-healing even when the icon image itself can be skipped.
+                self.setButtonTitle(displayText, for: button)
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
@@ -484,17 +476,7 @@ extension StatusItemController {
             // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
             weekly = Self.loadingPercentEpsilon
         }
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
-        var credits: Double? =
-            codexProjection?.menuBarFallback == .creditsBalance
-                ? self.store.codexMenuBarCreditsRemaining(
-                    snapshotOverride: snapshot,
-                    now: snapshot?.updatedAt ?? Date())
-                : nil
+        var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
 
@@ -585,9 +567,23 @@ extension StatusItemController {
         return false
     }
 
-    private static func iconSignatureValue(_ value: Double?) -> String {
+    static func iconSignatureValue(_ value: Double?) -> String {
         guard let value else { return "nil" }
         return String(format: "%.3f", value)
+    }
+
+    func menuBarCreditsRemainingForIcon(provider: UsageProvider, snapshot: UsageSnapshot?) -> Double? {
+        // Derive the menu-bar credits fallback from the same Codex projection path the rendered
+        // icon and menu use (`codexConsumerProjection` -> `menuBarFallback`), instead of a
+        // hand-rolled rate-window predicate. The projection is pure value composition over
+        // already-loaded snapshot/credits state (no IO), so this stays cheap while keeping the
+        // icon render, this signature input, and the menu-bar fallback semantics on a single
+        // source of truth — a hand-rolled approximation can silently drift from the projection
+        // as its fallback logic evolves.
+        guard provider == .codex else { return nil }
+        return self.store.codexMenuBarCreditsRemaining(
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
@@ -686,12 +682,15 @@ extension StatusItemController {
         case .percent:
             pace = nil
         case .pace, .both:
-            let weeklyWindow =
-                codexProjection?.rateWindow(for: .weekly)
-                ?? snapshot?.secondary
+            let paceWindow: RateWindow? = if let codexProjection {
+                codexProjection.rateWindow(for: .weekly)
+            } else if provider == .abacus {
                 // Abacus has no secondary window; pace is computed on primary monthly credits
-                ?? (provider == .abacus ? snapshot?.primary : nil)
-            pace = weeklyWindow.flatMap { window in
+                snapshot?.primary
+            } else {
+                percentWindow
+            }
+            pace = paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }
         }
@@ -892,7 +891,7 @@ extension StatusItemController {
         self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }
 
-    private func primaryProviderForUnifiedIcon() -> UsageProvider {
+    func primaryProviderForUnifiedIcon() -> UsageProvider {
         // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
         if self.settings.menuBarShowsHighestUsage,
            self.shouldMergeIcons,
@@ -915,7 +914,7 @@ extension StatusItemController {
         {
             return selected
         }
-        for provider in UsageProvider.allCases {
+        for provider in self.store.enabledProviders() {
             if self.store.isEnabled(provider), self.store.snapshot(for: provider) != nil {
                 return provider
             }
@@ -964,7 +963,7 @@ extension StatusItemController {
         self.tickBlink(now: now)
     }
 
-    private func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
+    func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
         if self.store.debugForceAnimation { return true }
 
         let isMerged = mergeIcons ?? self.shouldMergeIcons

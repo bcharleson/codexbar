@@ -22,11 +22,13 @@ struct StatusMenuTests {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
-        return SettingsStore(
+        let settings = SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.providerDetectionCompleted = true
+        return settings
     }
 
     func makeCodexStore(settings: SettingsStore, dashboardAuthorized: Bool) -> UsageStore {
@@ -85,7 +87,6 @@ struct StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
         settings.alibabaCodingPlanAPIRegion = .chinaMainland
 
         let fetcher = UsageFetcher()
@@ -820,7 +821,6 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -860,7 +860,6 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        settings.providerDetectionCompleted = true
 
         let registry = ProviderRegistry.shared
         try settings.setProviderEnabled(provider: .codex, metadata: #require(registry.metadata[.codex]), enabled: true)
@@ -884,8 +883,8 @@ extension StatusMenuTests {
             statusBar: self.makeStatusBarForTesting())
 
         let codexItem = try #require(controller.statusItems[.codex])
-        #expect(!controller.statusItem.autosaveName.hasPrefix("codexbar-"))
-        #expect(!codexItem.autosaveName.hasPrefix("codexbar-"))
+        #expect(controller.statusItem.autosaveName == "codexbar-merged")
+        #expect(codexItem.autosaveName == "codexbar-codex")
 
         try settings.setProviderEnabled(
             provider: .gemini,
@@ -894,8 +893,8 @@ extension StatusMenuTests {
         controller.handleProviderConfigChange(reason: "test")
 
         #expect(controller.statusItems[.codex] === codexItem)
-        #expect(controller.statusItems[.codex]?.autosaveName.hasPrefix("codexbar-") == false)
-        #expect(controller.statusItems[.gemini]?.autosaveName.hasPrefix("codexbar-") == false)
+        #expect(controller.statusItems[.codex]?.autosaveName == "codexbar-codex")
+        #expect(controller.statusItems[.gemini]?.autosaveName == "codexbar-gemini")
     }
 
     @Test
@@ -1672,7 +1671,7 @@ extension StatusMenuTests {
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
+            let shouldEnable = provider == .codex || provider == .cursor
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
         }
 
@@ -1689,15 +1688,15 @@ extension StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
 
-        let claudeRow = try #require(menu.items.first {
-            ($0.representedObject as? String) == "overviewRow-claude"
+        let cursorRow = try #require(menu.items.first {
+            ($0.representedObject as? String) == "overviewRow-cursor"
         })
-        let action = try #require(claudeRow.action)
-        let target = try #require(claudeRow.target as? StatusItemController)
-        _ = target.perform(action, with: claudeRow)
+        let action = try #require(cursorRow.action)
+        let target = try #require(cursorRow.target as? StatusItemController)
+        _ = target.perform(action, with: cursorRow)
 
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
-        #expect(settings.selectedMenuProvider == .claude)
+        #expect(settings.selectedMenuProvider == .cursor)
 
         let ids = self.representedIDs(in: menu)
         #expect(ids.contains("menuCard"))

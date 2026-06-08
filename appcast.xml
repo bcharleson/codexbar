@@ -3,97 +3,61 @@
     <channel>
         <title>CodexBar</title>
         <item>
-            <title>0.31.0</title>
-            <pubDate>Thu, 28 May 2026 23:11:46 +0100</pubDate>
+            <title>0.32.4</title>
+            <pubDate>Tue, 02 Jun 2026 15:43:46 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>73</sparkle:version>
-            <sparkle:shortVersionString>0.31.0</sparkle:shortVersionString>
+            <sparkle:version>79</sparkle:version>
+            <sparkle:shortVersionString>0.32.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.31.0</h2>
-<h3>Changed</h3>
-<ul>
-<li>Docs: update the Homebrew install command to use the official <code>codexbar</code> cask now that it supports Intel Macs (#1189). Thanks @SSakutaro!</li>
-<li>Tests: document and audit that routine validation must not trigger macOS Keychain prompts.</li>
-<li>Localization: localize popup panels and provider settings UI across supported languages (#1181). Thanks @jack24254029!</li>
-<li>Localization: complete Brazilian Portuguese coverage so pt-BR no longer falls back to English for new UI strings (#1188). Thanks @ManuzimFerreira!</li>
-</ul>
-<h3>Added</h3>
-<ul>
-<li>AWS Bedrock: support resolving usage and cost-history credentials from a named AWS profile via the AWS CLI (#1190). Thanks @oleksandr-soldatov!</li>
-<li>Codex: show Codex Spark model-specific usage as an optional extra quota lane (#1195, fixes #1177). Thanks @LeoLin990405!</li>
-<li>Localization: add Swedish as a selectable app language (#1186). Thanks @yeager!</li>
-</ul>
+            <description><![CDATA[<h2>CodexBar 0.32.4</h2>
 <h3>Fixed</h3>
 <ul>
-<li>Cost history: make token-cost JSONL scans cancellation-aware so quitting, forced refreshes, and account switches can stop stale scans sooner.</li>
-<li>Codex: show Spark 5-hour and weekly usage as separate quota lanes in Codex breakdowns (#1201).</li>
-<li>Codex: show captured <code>codex login</code> output when managed Add Account fails so users can recover from account-selection or OAuth failures (#1199). Thanks @chapati23!</li>
-<li>Claude: hide the obsolete Design quota lane now that Claude Design shares the main Claude usage limit (#1197).</li>
-<li>Menu bar: coalesce visible-menu rebuilds and reduce hover highlight work so the dropdown stays responsive on macOS 26.5 (#1196).</li>
+<li>Menu bar: avoid queuing redundant provider refreshes when opening a fresh merged-menu dropdown, while still retrying missing or stale provider data after menu tracking ends (#1235, #1277). Thanks @hhh2210!</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.31.0/CodexBar-macos-universal-0.31.0.zip" length="44654410" type="application/octet-stream" sparkle:edSignature="5QrkHnDb0Rc90o8qybk6S0p7TseVZiQ1zDaoLCmEQyUfODN/oqRfnDvPVKcYOLHa9P5NzMM5alxnkrMp9dbEBQ=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.4/CodexBar-macos-universal-0.32.4.zip" length="45041903" type="application/octet-stream" sparkle:edSignature="UxQW12JvzM4qWOdLoSqPaM9+tOEii1CJEAAGGU4On1F4952QT9ueIXTLTHOdU0MzrHmqs2RmOICx7gL1FZHFBw=="/>
         </item>
         <item>
-            <title>0.30.1</title>
-            <pubDate>Thu, 28 May 2026 07:56:49 +0100</pubDate>
+            <title>0.32.3</title>
+            <pubDate>Tue, 02 Jun 2026 12:30:56 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>72</sparkle:version>
-            <sparkle:shortVersionString>0.30.1</sparkle:shortVersionString>
+            <sparkle:version>78</sparkle:version>
+            <sparkle:shortVersionString>0.32.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.30.1</h2>
-<h3>Changed</h3>
-<ul>
-<li>CLI: make <code>codexbar diagnose</code> use a generic safe provider diagnostic export for all providers, with MiniMax details attached only as provider-specific metadata.</li>
-</ul>
+            <description><![CDATA[<h2>CodexBar 0.32.3</h2>
 <h3>Fixed</h3>
 <ul>
-<li>Settings: add trailing breathing room to provider-sidebar controls (#1183). Thanks @Yuxin-Qiao!</li>
-<li>Claude: treat OAuth usage HTTP 429s as rate limits, preserve cached credentials, and back off background retries while still allowing manual refresh (#1179). Thanks @LeoLin990405!</li>
-<li>Menu bar: stop repeated display-change status-item recreation from corrupting Control Center or confusing menu bar managers (#1176, fixes #1175). Thanks @diazdesandi!</li>
+<li>Menu bar: stop forcing a private preferred-position value for fresh status items; suspicious stored positions are now cleared so AppKit can place CodexBar normally on macOS 26 / 5K displays (#1267). Thanks @AdrianSimionov, @kirocop, and @Yuxin-Qiao!</li>
+<li>Menu bar: cache provider brand icons so merged-icon status updates no longer repeatedly parse SVG assets on the main thread during hover/open animations (#1235, #1274). Thanks @andradebruno, @xingpz2008, and @Yuxin-Qiao!</li>
+<li>Copilot: treat GitHub Copilot Business token-billing zero-entitlement quotas as unavailable instead of showing misleading 0% used usage (#1258, #1270). Thanks @devYRPauli!</li>
+<li>Menu bar: prepare closed menus after refresh and only reuse stale dropdown content for data-refresh invalidations so merged menu opens stay responsive without bypassing privacy or structure changes (#1261). Thanks @ProspectOre!</li>
+<li>OpenAI Web: stop reloading away from login and Cloudflare blocking states so the dashboard WebView does not loop on route corrections (#1259). Thanks @ProspectOre!</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.30.1/CodexBar-macos-universal-0.30.1.zip" length="44308521" type="application/octet-stream" sparkle:edSignature="cfxg8FT6uZzaLb/BVogBkANw6pBeja7Ib6sTd6VcYFqTq9FpmvJ0loeVbfkbSXanIuL7lFs2GEJeWPLQRqjJCQ=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.3/CodexBar-macos-universal-0.32.3.zip" length="45040320" type="application/octet-stream" sparkle:edSignature="ksjUSEuIpJ1LJH7JvPwU+5aKTj3NiUXiqIRIcWJUmKm/RJZFZXojCAZ/BSXGg+G9gbbNk/nR3MZHW7jy7FTEDg=="/>
         </item>
         <item>
-            <title>0.30.0</title>
-            <pubDate>Wed, 27 May 2026 07:04:18 +0100</pubDate>
+            <title>0.32.2</title>
+            <pubDate>Mon, 01 Jun 2026 04:43:41 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>71</sparkle:version>
-            <sparkle:shortVersionString>0.30.0</sparkle:shortVersionString>
+            <sparkle:version>77</sparkle:version>
+            <sparkle:shortVersionString>0.32.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.30.0</h2>
+            <description><![CDATA[<h2>CodexBar 0.32.2</h2>
 <h3>Added</h3>
 <ul>
-<li>MiniMax: add a redacted diagnostic CLI export for safe issue reports (#1128). Thanks @Yuxin-Qiao!</li>
-<li>Antigravity: show the complete per-model quota breakdown alongside the existing summary lanes (#1139). Thanks @guhyun9454!</li>
-<li>Widget: show tertiary usage rows for providers that expose a third quota lane (#1160). Thanks @LeoLin990405!</li>
-<li>DeepSeek: show optional web-session usage and cost summaries alongside the balance card (#1166). Thanks @Yuxin-Qiao!</li>
-<li>OpenAI: scope Admin API usage to the configured project and keep token accounts from inheriting stale project filters (#1168). Thanks @mstallone!</li>
+<li>QA: document the live CodexBar e2e flow and add a redacted provider-matrix helper for packaged CLI smoke tests.</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>App shutdown: detach status items, close tracked menus, and cancel menu tasks before quit so Dock autohide stays responsive on macOS 26.5 (#1174). Thanks @jskoiz!</li>
-<li>Widgets: package the macOS widget as a real Xcode app-extension target so WidgetKit descriptors load on macOS 26.5 (#1095). Thanks @jamesjlopez!</li>
-<li>Menu: render quota-warning markers as subtle inset ticks instead of full-height bars (#1149).</li>
-<li>Codex: show sign-in guidance when the Codex CLI is logged out instead of reporting a temporary usage outage (#1171, fixes #1170). Thanks @jskoiz!</li>
-<li>Menu bar: clear stale hidden macOS status-item visibility defaults once before creating CodexBar items (#1169).</li>
-<li>StepFun: refresh expired Oasis tokens and persist recovered manual sessions. Thanks @LeoLin990405!</li>
-<li>Release: prevent manual CLI artifact builds from publishing or clobbering release assets (#1154). Thanks @jskoiz!</li>
-<li>Cost history: route OpenAI and Mistral API spend through the shared cost-history cards, including OpenAI request counts (#1163). Thanks @LeoLin990405!</li>
-<li>Menu: keep provider switcher Cmd-number and arrow shortcuts working while the open menu is tracking events (#1157, fixes #1156 and #1144). Thanks @anirudhvee!</li>
-<li>Codex: prevent fork token replay from overcounting corrected cumulative session totals (#1164). Thanks @xx205!</li>
-<li>Alibaba Token Plan: update usage refreshes to the Bailian subscription-summary endpoint (#1142). Thanks @YanxinXue!</li>
-<li>Ollama: show pace projections for documented 5-hour session and 7-day weekly usage windows (#1136). Thanks @bdamokos!</li>
-<li>Localization: polish Simplified Chinese wording and add notification strings (#1165). Thanks @fanfanci!</li>
-<li>Localization: improve Traditional Chinese wording and localize notification copy (#1158). Thanks @jack24254029!</li>
-<li>Localization: improve Simplified Chinese visible menu, dashboard, and usage labels (#1145). Thanks @Yuxin-Qiao!</li>
+<li>Menu bar: add breathing room to compact Codex account rows so the provider, account, status, and plan labels no longer hug the row edges.</li>
+<li>Performance: make Codex token-cost scanning faster and more memory-efficient on large local session corpora.</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.30.0/CodexBar-macos-universal-0.30.0.zip" length="43980302" type="application/octet-stream" sparkle:edSignature="em2+xZpRZvRphUFRWr0t389BLckIwZZr8e8MV65H97gzq6hbPiVe3P5E+4HFMUtlUncrRKYrhSIQo4C6WGZ0Aw=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.32.2/CodexBar-macos-universal-0.32.2.zip" length="45070301" type="application/octet-stream" sparkle:edSignature="pvj2uObMV/TgTZFYmi6hGfRRZR5gcz/7cV68N3apvRy4CvZSekdF6ip7lZa6ZwDdS2XEy9X+jLt1j8fcuLzNCg=="/>
         </item>
         <item>
             <title>0.14.0</title>
