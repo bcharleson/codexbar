@@ -41,7 +41,8 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
             throw AntigravityAgyCLIUsageProbeError.parseFailed("No model quotas found in /usage output")
         }
 
-        let account: String? = {
+        let parsed = Self.parseAccountInfo(captured)
+        let account: String? = parsed.email ?? {
             guard let credentials = try? AntigravityAgyCredentials.loadCredentials(),
                   let email = credentials.email?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !email.isEmpty
@@ -56,7 +57,24 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
         return AntigravityStatusSnapshot(
             modelQuotas: modelQuotas,
             accountEmail: account,
-            accountPlan: nil)
+            accountPlan: parsed.plan)
+    }
+
+    /// Pulls the signed-in account email and Google subscription plan out of the captured `agy`
+    /// banner/status bar. agy prints the email in its start-up banner (`… b.charleson1@gmail.com`)
+    /// and the subscription as a "(Google AI …)" tag in the bottom status bar (e.g.
+    /// "(Google AI Ultra)"). The "Google AI" prefix is matched explicitly so a model-mode paren like
+    /// "(Medium)" or "(Thinking)" can never be mistaken for the plan.
+    static func parseAccountInfo(_ text: String) -> (email: String?, plan: String?) {
+        let plain = Self.stripANSI(text)
+        let email = plain
+            .range(of: #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#, options: .regularExpression)
+            .map { String(plain[$0]) }
+        let plan = plain
+            .range(of: #"\(Google AI[^)]*\)"#, options: .regularExpression)
+            .map { String(plain[$0].dropFirst().dropLast()).trimmingCharacters(in: .whitespaces) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        return (email, plan)
     }
 
     static func parseUsageOutput(_ text: String) throws -> [AntigravityModelQuota] {
@@ -111,12 +129,16 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let runner = TTYCommandRunner()
-                    // `agy` signs in fresh on every cold launch ("Signing in…"), and that latency is
-                    // variable. Sending `/usage` at a fixed delay races the sign-in: if it lands while
-                    // agy is still authenticating the command is dropped and the panel never renders.
-                    // Instead, wait for the ready prompt marker ("? for shortcuts") before sending
-                    // `/usage`, and stop the moment the Model Quota panel footer appears. Warm starts
-                    // finish in ~2-3s; the larger ceiling only applies to genuinely slow sign-ins.
+                    // `agy` signs in fresh on every cold launch ("Signing in…") with variable latency,
+                    // and a moment later renders its Google subscription tag ("(Google AI …)") into the
+                    // prompt status bar. We send `/usage` only once that tag appears: that proves sign-in
+                    // finished (avoids the old race where `/usage` landed mid-sign-in and was dropped)
+                    // AND keeps the plan in the captured banner — opening the panel any earlier overlays
+                    // the status bar before the async subscription fetch paints it. We then stop the
+                    // instant the Model Quota panel footer appears. If no subscription tag ever renders
+                    // (e.g. no plan), `idleTimeout` ends the capture and the caller falls back to the
+                    // remote/Gemini path. Warm starts finish in ~3s; the larger ceiling covers slow
+                    // sign-ins.
                     let result = try runner.run(
                         binary: binary,
                         send: "",
@@ -124,8 +146,9 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
                             rows: 40,
                             cols: 120,
                             timeout: max(timeout, 40),
+                            idleTimeout: 6.0,
                             initialDelay: 0.5,
-                            sendOnSubstrings: ["? for shortcuts": "/usage\r"],
+                            sendOnSubstrings: ["Google AI": "/usage\r"],
                             stopOnSubstrings: ["pgup/pgdown", "esc Close"],
                             settleAfterStop: 0.5))
                     continuation.resume(returning: result.text)
@@ -200,8 +223,10 @@ public enum AntigravityAgyCLIUsageProbe: Sendable {
         // the bug). This valid CSI matcher — ESC `[`, params, intermediates, final byte — covers the
         // colour/erase/cursor sequences agy emits (`[1m`, `[m`, `[K`, `[80X`, `[38;2;…m`, etc.).
         let escape = "\u{001B}"
+        // ESC `[`, optional private-mode/param bytes (`0-9 ; ? < = >`), intermediates (` ` to `/`),
+        // final byte (`@` to `~`). Covers colour/erase/cursor plus private sequences like ESC[>4m.
         var plain = text.replacingOccurrences(
-            of: escape + #"\[[0-9;?]*[ -/]*[@-~]"#,
+            of: escape + #"\[[0-9;?<=>]*[ -/]*[@-~]"#,
             with: "",
             options: .regularExpression)
         plain = plain.replacingOccurrences(of: "\u{0008}", with: "")

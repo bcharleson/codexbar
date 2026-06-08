@@ -33,6 +33,34 @@ struct AntigravityAgyCLIUsageProbeTests {
     }
 
     @Test
+    func `parses account email and Google AI plan from agy banner`() {
+        let esc = "\u{001B}"
+        let captured = """
+        \(esc)[1mAntigravity CLI 1.0.6\(esc)[m
+        \(esc)[2m▀▀▀▀▀▀       b.charleson1@gmail.com\(esc)[m
+        ▀▀▀▀▀▀▀▀      Gemini 3.5 Flash (Medium)
+        ────────────────────────────
+        \(esc)[38;2;154;160;166m? for shortcutsGemini 3.5 Flash (Medium)\(esc)[m \(esc)[2m(Google AI Ultra)\(esc)[m
+        """
+
+        let info = AntigravityAgyCLIUsageProbe.parseAccountInfo(captured)
+
+        #expect(info.email == "b.charleson1@gmail.com")
+        // The plan is the "(Google AI …)" tag, NOT the model-mode paren "(Medium)".
+        #expect(info.plan == "Google AI Ultra")
+    }
+
+    @Test
+    func `account info has no plan when no Google AI tag present`() {
+        let info = AntigravityAgyCLIUsageProbe.parseAccountInfo("""
+        Gemini 3.1 Pro (High)
+        Claude Sonnet 4.6 (Thinking)
+        """)
+        #expect(info.plan == nil)
+        #expect(info.email == nil)
+    }
+
+    @Test
     func `parses model quota panel from agy usage output`() throws {
         let sample = """
         └ Model Quota
