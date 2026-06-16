@@ -232,8 +232,13 @@ extension StatusItemController {
     }
 
     @discardableResult
-    func applyIcon(phase: Double?) -> Bool {
+    func applyIcon(
+        phase: Double?,
+        bypassMergedMenuTrackingDeferral: Bool = false) -> Bool
+    {
         guard let button = self.statusItem.button else { return false }
+        if !bypassMergedMenuTrackingDeferral,
+           self.deferMergedIconRenderDuringMenuTrackingIfNeeded() { return true }
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
@@ -248,27 +253,11 @@ extension StatusItemController {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
-                showUsed: showUsed)
+                showUsed: showUsed,
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         var primary = resolved?.primary
         var weekly = resolved?.secondary
-        if showUsed,
-           primaryProvider == .warp,
-           let remaining = snapshot?.secondary?.remainingPercent,
-           remaining <= 0
-        {
-            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
-            weekly = 0
-        }
-        if showUsed,
-           primaryProvider == .warp,
-           let remaining = snapshot?.secondary?.remainingPercent,
-           remaining > 0,
-           weekly == 0
-        {
-            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
-            weekly = Self.loadingPercentEpsilon
-        }
         var credits = self.menuBarCreditsRemainingForIcon(provider: primaryProvider, snapshot: snapshot)
         var stale = self.store.isStale(provider: primaryProvider)
         var morphProgress: Double?
@@ -395,6 +384,25 @@ extension StatusItemController {
         return false
     }
 
+    private func deferMergedIconRenderDuringMenuTrackingIfNeeded() -> Bool {
+        guard self.shouldMergeIcons, self.isMergedMenuOpen else { return false }
+        self.deferredMergedIconRenderAfterTracking = true
+        self.noteIconPerfRender(skipped: true)
+        return true
+    }
+
+    func applyDeferredMergedIconRenderAfterTrackingIfNeeded() {
+        guard self.deferredMergedIconRenderAfterTracking else { return }
+        guard self.shouldMergeIcons else {
+            self.deferredMergedIconRenderAfterTracking = false
+            return
+        }
+        guard !self.isMergedMenuOpen else { return }
+        self.deferredMergedIconRenderAfterTracking = false
+        let phase: Double? = self.animationDriver == nil ? nil : self.animationPhase
+        self.applyIcon(phase: phase)
+    }
+
     private func shouldSkipMergedIconRender(_ signature: String) -> Bool {
         guard self.shouldMergeIcons else {
             self.lastAppliedMergedIconRenderSignature = signature
@@ -455,27 +463,11 @@ extension StatusItemController {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
-                showUsed: showUsed)
+                showUsed: showUsed,
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
         }
         var primary = resolved?.primary
         var weekly = resolved?.secondary
-        if showUsed,
-           provider == .warp,
-           let remaining = snapshot?.secondary?.remainingPercent,
-           remaining <= 0
-        {
-            // Preserve Warp "no bonus/exhausted bonus" layout even in show-used mode.
-            weekly = 0
-        }
-        if showUsed,
-           provider == .warp,
-           let remaining = snapshot?.secondary?.remainingPercent,
-           remaining > 0,
-           weekly == 0
-        {
-            // In show-used mode, `0` means "unused", not "missing". Keep the weekly lane present.
-            weekly = Self.loadingPercentEpsilon
-        }
         var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         var stale = self.store.isStale(provider: provider)
         var morphProgress: Double?
@@ -595,6 +587,42 @@ extension StatusItemController {
         return false
     }
 
+    func startQuotaWarningFlash(provider: UsageProvider, postedAt: Date = Date()) {
+        let until = postedAt.addingTimeInterval(Self.quotaWarningFlashDuration)
+        self.quotaWarningFlashUntil[provider] = until
+        self.quotaWarningFlashTasks[provider]?.cancel()
+        self.updateIcons()
+        self.applyQuotaWarningIconDuringMergedMenuTrackingIfNeeded()
+        self.quotaWarningFlashTasks[provider] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.quotaWarningFlashDuration))
+            await MainActor.run { [weak self] in
+                self?.clearExpiredQuotaWarningFlash(provider: provider)
+            }
+        }
+    }
+
+    func clearExpiredQuotaWarningFlash(provider: UsageProvider, now: Date = Date()) {
+        guard let currentUntil = self.quotaWarningFlashUntil[provider],
+              currentUntil <= now
+        else {
+            return
+        }
+        self.quotaWarningFlashUntil.removeValue(forKey: provider)
+        self.quotaWarningFlashTasks.removeValue(forKey: provider)
+        self.updateIcons()
+        self.applyQuotaWarningIconDuringMergedMenuTrackingIfNeeded()
+    }
+
+    private func applyQuotaWarningIconDuringMergedMenuTrackingIfNeeded() {
+        guard self.shouldMergeIcons,
+              self.isMergedMenuOpen
+        else {
+            return
+        }
+        let phase: Double? = self.animationDriver == nil ? nil : self.animationPhase
+        self.applyIcon(phase: phase, bypassMergedMenuTrackingDeferral: true)
+    }
+
     static func quotaWarningFlashImage(base: NSImage) -> NSImage {
         let image = NSImage(size: base.size)
         image.lockFocus()
@@ -631,19 +659,37 @@ extension StatusItemController {
     }
 
     func menuBarDisplayText(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let mode = self.settings.menuBarDisplayMode
         if provider == .openrouter,
            self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
            let balance = snapshot?.openRouterUsage?.balance
         {
             return UsageFormatter.usdString(balance)
         }
+        if provider == .opencodego,
+           let balance = Self.openCodeGoZenBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .deepseek,
            let balance = Self.deepSeekBalanceDisplayText(snapshot: snapshot)
         {
             return balance
         }
+        if provider == .mimo,
+           let balance = Self.miMoBalanceDisplayText(
+               snapshot: snapshot,
+               preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
+        {
+            return balance
+        }
         if provider == .moonshot,
            let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
+        if provider == .poe,
+           let balance = Self.poeBalanceDisplayText(snapshot: snapshot)
         {
             return balance
         }
@@ -663,14 +709,15 @@ extension StatusItemController {
                 mode: self.settings.kiroMenuBarDisplayMode,
                 showUsed: self.settings.usageBarsShowUsed)
         }
-        if self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
+        if mode != .resetTime,
+           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .extraUsage,
+           provider != .cursor || mode == .pace,
            let spend = Self.extraUsageSpendDisplayText(snapshot: snapshot)
         {
             return spend
         }
 
         let percentWindow = self.menuBarPercentWindow(for: provider, snapshot: snapshot)
-        let mode = self.settings.menuBarDisplayMode
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: provider,
@@ -693,6 +740,13 @@ extension StatusItemController {
             pace = paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }
+        case .resetTime:
+            return MenuBarDisplayText.displayText(
+                mode: mode,
+                percentWindow: percentWindow,
+                showUsed: self.settings.usageBarsShowUsed,
+                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                now: now)
         }
         let displayText = MenuBarDisplayText.displayText(
             mode: mode,
@@ -729,6 +783,23 @@ extension StatusItemController {
         return balance.map(String.init)
     }
 
+    nonisolated static func miMoBalanceDisplayText(
+        snapshot: UsageSnapshot?,
+        preference: MenuBarMetricPreference) -> String?
+    {
+        guard let snapshot, let mimoUsage = snapshot.mimoUsage else { return nil }
+        if snapshot.primary != nil, preference != .secondary { return nil }
+        let detail = mimoUsage.balanceDetail
+        return detail.components(separatedBy: " (Paid:").first
+    }
+
+    nonisolated static func poeBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        self.displayValue(
+            from: snapshot?.loginMethod(for: .poe),
+            prefix: "Balance:",
+            removingSuffix: "")
+    }
+
     nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
         self.displayValue(
             from: snapshot?.loginMethod(for: .moonshot),
@@ -760,6 +831,17 @@ extension StatusItemController {
         guard let cost = snapshot?.providerCost,
               cost.limit > 0,
               cost.used >= 0
+        else {
+            return nil
+        }
+        return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+    }
+
+    nonisolated static func openCodeGoZenBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard snapshot?.primary == nil,
+              snapshot?.secondary == nil,
+              let cost = snapshot?.providerCost,
+              cost.period == "Zen balance"
         else {
             return nil
         }

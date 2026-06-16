@@ -2,6 +2,12 @@ import CodexBarCore
 import Foundation
 
 extension UsageMenuCardView.Model {
+    static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
+        snapshot?.primary == nil &&
+            snapshot?.secondary == nil &&
+            snapshot?.providerCost?.period == "Zen balance"
+    }
+
     static func tokenUsageSnapshot(input: Input) -> CostUsageTokenSnapshot? {
         if usesProviderCostHistoryAsPrimaryDashboard(input.provider), input.snapshot != nil {
             return primaryCostHistorySnapshot(input: input)
@@ -11,10 +17,17 @@ extension UsageMenuCardView.Model {
 
     static func creditsLine(
         metadata: ProviderMetadata,
+        snapshot: UsageSnapshot?,
         credits: CreditsSnapshot?,
         error: String?) -> String?
     {
         guard metadata.supportsCredits else { return nil }
+        if metadata.id == .amp,
+           let ampUsage = snapshot?.ampUsage,
+           let ampCredits = self.ampCreditsLine(ampUsage)
+        {
+            return ampCredits
+        }
         if let credits {
             return UsageFormatter.creditsString(from: credits.remaining)
         }
@@ -22,6 +35,19 @@ extension UsageMenuCardView.Model {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return L(metadata.creditsHint)
+    }
+
+    private static func ampCreditsLine(_ usage: AmpUsageDetails) -> String? {
+        var lines: [String] = []
+        if let individualCredits = usage.individualCredits {
+            lines.append(
+                "\(L("Individual credits")): \(UsageFormatter.currencyString(individualCredits, currencyCode: "USD"))")
+        }
+        lines.append(contentsOf: usage.workspaceBalances.map { workspace in
+            "\(L("Workspace")) \(workspace.name): " +
+                UsageFormatter.currencyString(workspace.remaining, currencyCode: "USD")
+        })
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     static func tokenUsageSection(
@@ -175,7 +201,7 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
-        if provider == .openai || provider == .claude, cost.limit <= 0 {
+        if provider == .openai || provider == .claude || provider == .litellm, cost.limit <= 0 {
             let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
             return ProviderCostSection(

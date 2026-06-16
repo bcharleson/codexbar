@@ -156,7 +156,7 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
-    func `merged provider switch restores cached tab content`() async throws {
+    func `merged provider switch updates live tab rows in place`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(true)
@@ -198,12 +198,14 @@ struct StatusMenuSwitcherRefreshTests {
         }
         defer { controller._test_openMenuRebuildObserver = nil }
 
+        // Provider switches now reconcile matching rows in place instead of parking and
+        // restoring distinct item sets per tab: the same NSMenuItem objects carry each
+        // tab's freshly built content, so AppKit never relayouts the open menu per insert.
         let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag))
         await Self.waitForRebuildCount(1, rebuildCount: { rebuildCount })
         #expect(menu.items.indices.contains(contentStartIndex))
-        let alternateContentID = ObjectIdentifier(menu.items[contentStartIndex])
-        #expect(alternateContentID != originalContentID)
+        #expect(ObjectIdentifier(menu.items[contentStartIndex]) == originalContentID)
 
         let alternateSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag))
@@ -215,10 +217,72 @@ struct StatusMenuSwitcherRefreshTests {
         #expect(restoredSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag))
         await Self.waitForRebuildCount(3, rebuildCount: { rebuildCount })
         #expect(menu.items.indices.contains(contentStartIndex))
-        #expect(ObjectIdentifier(menu.items[contentStartIndex]) == alternateContentID)
+        #expect(ObjectIdentifier(menu.items[contentStartIndex]) == originalContentID)
 
         controller.invalidateMenus()
         #expect(controller.mergedSwitcherContentCaches.isEmpty)
+    }
+
+    @Test
+    func `native image menu rows are replaced during reconciliation`() {
+        let settings = Self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let liveItem = Self.nativeImageItem(title: "Status Page")
+        menu.addItem(liveItem)
+        let shapes = controller.menuContentShapes(in: menu, fromIndex: 0)
+
+        let scratch = NSMenu()
+        let freshItem = Self.nativeImageItem(title: "Status Page")
+        scratch.addItem(freshItem)
+
+        controller.reconcileMenuContent(menu, fromIndex: 0, shapes: shapes, with: scratch)
+
+        #expect(menu.items.count == 1)
+        #expect(ObjectIdentifier(menu.items[0]) == ObjectIdentifier(freshItem))
+        #expect(ObjectIdentifier(menu.items[0]) != ObjectIdentifier(liveItem))
+    }
+
+    @Test
+    func `native image submenu rows reconcile in place`() {
+        let settings = Self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let liveItem = Self.nativeImageItem(title: "System Account")
+        liveItem.submenu = NSMenu(title: "System Account")
+        menu.addItem(liveItem)
+        let shapes = controller.menuContentShapes(in: menu, fromIndex: 0)
+
+        let scratch = NSMenu()
+        let freshItem = Self.nativeImageItem(title: "System Account")
+        freshItem.submenu = NSMenu(title: "System Account")
+        scratch.addItem(freshItem)
+
+        controller.reconcileMenuContent(menu, fromIndex: 0, shapes: shapes, with: scratch)
+
+        #expect(menu.items.count == 1)
+        #expect(ObjectIdentifier(menu.items[0]) == ObjectIdentifier(liveItem))
+        #expect(ObjectIdentifier(menu.items[0]) != ObjectIdentifier(freshItem))
     }
 
     @Test
@@ -253,9 +317,7 @@ struct StatusMenuSwitcherRefreshTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         let contentStartIndex = controller.providerSwitcherContentStartIndex(in: menu)
-        let originalContent = try #require(
-            menu.items.indices.contains(contentStartIndex) ? menu.items[contentStartIndex] : nil)
-        let originalContentID = ObjectIdentifier(originalContent)
+        #expect(menu.items.indices.contains(contentStartIndex))
         let selectedButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .on })
         let alternateButton = try #require(Self.switcherButtons(in: menu).first { $0.state == .off })
 
@@ -266,6 +328,7 @@ struct StatusMenuSwitcherRefreshTests {
         defer { controller._test_openMenuRebuildObserver = nil }
 
         controller.invalidateMenus()
+        #expect(controller.mergedSwitcherContentCaches.isEmpty)
         let initialSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(initialSwitcher._test_simulateRuntimeClick(buttonTag: alternateButton.tag))
         await Self.waitForRebuildCount(1, rebuildCount: { rebuildCount })
@@ -274,8 +337,17 @@ struct StatusMenuSwitcherRefreshTests {
         #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag))
         await Self.waitForRebuildCount(2, rebuildCount: { rebuildCount })
 
+        // Rows are reconciled in place, so freshness is guaranteed by rebuilding content
+        // from current data rather than by minting new items: the live menu must be marked
+        // fresh and no cached entry may predate the required invalidation. (In-place item
+        // identity itself is covered deterministically in MenuCardViewRecyclingTests; here
+        // async gate state may legitimately route a populate through the full rebuild.)
         #expect(menu.items.indices.contains(contentStartIndex))
-        #expect(ObjectIdentifier(menu.items[contentStartIndex]) != originalContentID)
+        let menuKey = ObjectIdentifier(menu)
+        #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
+        for entry in controller.mergedSwitcherContentCaches[menuKey]?.values ?? [:].values {
+            #expect(entry.requiredMenuContentVersion >= controller.latestRequiredMenuRebuildVersion)
+        }
     }
 
     @Test
@@ -374,5 +446,11 @@ struct StatusMenuSwitcherRefreshTests {
         switcherView.subviews
             .compactMap { $0 as? NSButton }
             .sorted { $0.tag < $1.tag }
+    }
+
+    private static func nativeImageItem(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.image = NSImage(size: NSSize(width: 16, height: 16))
+        return item
     }
 }

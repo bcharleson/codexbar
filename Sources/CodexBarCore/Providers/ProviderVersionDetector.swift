@@ -73,14 +73,23 @@ public enum ProviderVersionDetector {
         return nil
     }
 
-    static func run(path: String, args: [String], timeout: TimeInterval = 2.0) -> String? {
+    static func run(
+        path: String,
+        args: [String],
+        timeout: TimeInterval = 2.0,
+        environment: [String: String]? = nil,
+        mergeStandardError: Bool = false) -> String?
+    {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = args
+        proc.environment = environment
         let out = Pipe()
         proc.standardOutput = out
-        proc.standardError = Pipe()
+        proc.standardError = mergeStandardError ? out : FileHandle.nullDevice
         proc.standardInput = nil
+        let outputCapture = ProcessPipeCapture(pipe: out)
+        outputCapture.start()
 
         let exitSemaphore = DispatchSemaphore(value: 0)
         proc.terminationHandler = { _ in
@@ -90,15 +99,17 @@ public enum ProviderVersionDetector {
         do {
             try proc.run()
         } catch {
+            outputCapture.stop()
             return nil
         }
 
         let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
         if !didExit, !Self.forceExit(proc, exitSemaphore: exitSemaphore) {
+            outputCapture.stop()
             return nil
         }
 
-        let data = out.fileHandleForReading.readDataToEndOfFile()
+        let data = outputCapture.finishSynchronously(timeout: 0.25)
         guard proc.terminationStatus == 0,
               let text = String(data: data, encoding: .utf8)?
                   .split(whereSeparator: \.isNewline).first

@@ -99,6 +99,8 @@
 "Could not start codex login" = "Impossible de démarrer la connexion à Codex";
 "Could not switch system account" = "Impossible de changer de compte système";
 "Credits" = "Crédits";
+"Individual credits" = "Crédits individuels";
+"Workspace" = "Espace de travail";
 "Credits history" = "Historique des crédits";
 "Cursor login failed" = "La connexion au curseur a échoué";
 "Custom" = "Personnalisé";
@@ -399,11 +401,18 @@
 "language_chinese_simplified" = "Chinois simplifié";
 "language_chinese_traditional" = "Chinois traditionnel";
 "language_portuguese_brazilian" = "Portugais (Brésil)";
+"language_german" = "Allemand";
 "language_swedish" = "Suédois";
 "language_french" = "Français";
 "language_dutch" = "Néerlandais";
 "language_ukrainian" = "Ukrainien";
+"language_japanese" = "Japonais";
+"language_korean" = "Coréen";
+"language_italian" = "Italiano";
 "language_vietnamese" = "Vietnamien";
+"language_turkish" = "Türkçe";
+"language_indonesian" = "Indonésien";
+"language_polish" = "Polonais";
 "start_at_login_title" = "Lancer à l'ouverture de session";
 "start_at_login_subtitle" = "Ouvre automatiquement CodexBar au démarrage de votre Mac.";
 "show_cost_summary" = "Afficher le récapitulatif des coûts";
@@ -497,7 +506,7 @@
 "show_quota_warning_markers_title" = "Afficher les marqueurs d'avertissement de quota";
 "show_quota_warning_markers_subtitle" = "Dessinez des coches de seuil sur les barres d’utilisation lorsque des avertissements de quota sont configurés.";
 "weekly_progress_work_days_title" = "Jours de travail hebdomadaires";
-"weekly_progress_work_days_subtitle" = "Dessinez des graduations journalières sur les barres d’utilisation hebdomadaire.";
+"weekly_progress_work_days_subtitle" = "Définit les jours ouvrés pour les repères des barres d’utilisation hebdomadaire et le calcul du rythme.";
 "show_reset_time_as_clock_title" = "Afficher l'heure de réinitialisation sous forme d'horloge";
 "show_reset_time_as_clock_subtitle" = "Affichez les temps de réinitialisation sous forme de valeurs d'horloge absolues au lieu de comptes à rebours.";
 "show_provider_changelog_links_title" = "Afficher les liens du journal des modifications du fournisseur";
@@ -622,9 +631,11 @@
 "display_mode_percent" = "Pourcentage";
 "display_mode_pace" = "Rythme";
 "display_mode_both" = "Les deux";
+"display_mode_reset_time" = "Heure de réinitialisation";
 "display_mode_percent_desc" = "Afficher le pourcentage restant/utilisé (par exemple 45 %)";
 "display_mode_pace_desc" = "Afficher l'indicateur d'allure (par exemple +5 %)";
 "display_mode_both_desc" = "Afficher à la fois le pourcentage et le rythme (par exemple 45 % · +5 %)";
+"display_mode_reset_time_desc" = "Afficher l'heure de réinitialisation de la métrique sélectionnée (par exemple ↻ 15:56)";
 
 /* Provider status */
 "status_operational" = "Opérationnel";
@@ -696,6 +707,7 @@
 "Resets %@" = "Réinitialise %@";
 "Resets in %@" = "Réinitialisé dans %@";
 "Resets now" = "Réinitialise maintenant";
+"reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
 "Updated %@" = "%@ mis à jour";
 "Updated %@h ago" = "Mis à jour il y a %@h";
@@ -909,7 +921,7 @@
 "Antigravity login failed" = "La connexion antigravité a échoué";
 "Antigravity login timed out" = "La connexion antigravité a expiré";
 "Auth source" = "Source d'authentification";
-"Automatic imports Chrome browser cookies from Xiaomi MiMo." = "Importe automatiquement les cookies du navigateur Chrome de Xiaomi MiMo.";
+"Automatic imports browser cookies from Xiaomi MiMo." = "Importe automatiquement les cookies du navigateur de Xiaomi MiMo.";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Importe automatiquement les données de session Windsurf à partir du navigateur Chromium localStorage.";
 "Automatic imports browser cookies from Bailian." = "Importe automatiquement les cookies du navigateur depuis Bailian.";
 "Automatically imports browser cookies." = "Importe automatiquement les cookies du navigateur.";
@@ -1009,6 +1021,7 @@
 "Personal account" = "Compte personnel";
 "Project ID" = "ID du projet";
 "Re-auth" = "Se reconnecter";
+"Re-login at claude.ai" = "Se reconnecter à claude.ai";
 "Re-authenticating…" = "Réauthentification…";
 "Refresh Session" = "Session de rafraîchissement";
 "Refresh organizations" = "Actualiser les organisations";
@@ -1064,3 +1077,6 @@
 "Clear" = "Effacer";
 "No matching providers" = "Aucun fournisseur correspondant";
 "Search providers" = "Fournisseurs de recherche";
+"language_arabic" = "العربية";
+"language_persian" = "فارسی";
+"language_thai" = "ไทย";

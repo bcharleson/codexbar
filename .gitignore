@@ -34,6 +34,7 @@ debug_*.swift
 .swiftpm-cache/
 .tmp-clang/
 .antigravitycli/
+__pycache__/
 
 # Debug/analysis docs
 docs/*-analysis.md

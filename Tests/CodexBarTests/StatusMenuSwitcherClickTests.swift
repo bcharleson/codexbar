@@ -494,20 +494,37 @@ struct StatusMenuSwitcherClickTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
+        controller.menuRefreshEnabledOverrideForTesting = true
+        defer { controller.releaseStatusItemsForTesting() }
 
         let menu = try #require(controller.makeMenu() as? StatusItemMenu)
         controller.menuWillOpen(menu)
         #expect(menu.items.first?.view is ProviderSwitcherView)
+        store.tokenRefreshInFlight.insert(.codex)
+        defer { store.tokenRefreshInFlight.remove(.codex) }
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in
+            rebuildCount += 1
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
 
         #expect(try menu.performKeyEquivalent(with: Self.arrowKeyEvent(keyCode: 124)) == true)
-        await Task.yield()
+        for _ in 0..<100 where rebuildCount == 0 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
+        }
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .claude)
+        #expect(rebuildCount == 1)
 
         #expect(try menu.performKeyEquivalent(with: Self.arrowKeyEvent(keyCode: 123)) == true)
-        await Task.yield()
+        for _ in 0..<100 where rebuildCount == 1 {
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
+        }
         #expect(settings.mergedMenuLastSelectedWasOverview == false)
         #expect(settings.selectedMenuProvider == .codex)
+        #expect(rebuildCount == 2)
     }
 
     @Test
@@ -730,7 +747,7 @@ struct StatusMenuSwitcherClickTests {
     }
 
     @Test
-    func `switcher quota indicator disappears when remaining becomes unavailable`() throws {
+    func `switcher keeps stable height when remaining becomes unavailable`() throws {
         var grokRemaining: Double? = 50
         let noQuotaView = ProviderSwitcherView(
             providers: [.claude, .grok],
@@ -762,7 +779,7 @@ struct StatusMenuSwitcherClickTests {
         #expect(view._test_quotaIndicatorFillRatios().count == 2)
         let noQuotaHeight = try #require(noQuotaView._test_buttonFittingSizes().last?.height)
         let quotaHeight = try #require(view._test_buttonFittingSizes().last?.height)
-        #expect(quotaHeight > noQuotaHeight)
+        #expect(quotaHeight == noQuotaHeight)
 
         grokRemaining = nil
         view.updateQuotaIndicators()
@@ -773,7 +790,7 @@ struct StatusMenuSwitcherClickTests {
     }
 
     @Test
-    func `text only switcher quota bars reserve title space`() throws {
+    func `text only switcher keeps stable height with quota bars`() throws {
         let providers: [UsageProvider] = [.claude, .grok]
         let textOnlyWithoutQuota = ProviderSwitcherView(
             providers: providers,
@@ -796,7 +813,7 @@ struct StatusMenuSwitcherClickTests {
 
         let withoutQuotaHeight = try #require(textOnlyWithoutQuota._test_buttonFittingSizes().first?.height)
         let withQuotaHeight = try #require(textOnlyWithQuota._test_buttonFittingSizes().first?.height)
-        #expect(withQuotaHeight > withoutQuotaHeight)
+        #expect(withQuotaHeight == withoutQuotaHeight)
     }
 
     @Test
@@ -878,13 +895,21 @@ struct StatusMenuSwitcherClickTests {
         view.layoutSubtreeIfNeeded()
 
         // All buttons must stay within switcher bounds (no vertical overflow).
-        for frame in view._test_buttonFrames() {
+        let buttonFrames = view._test_buttonFrames()
+        let contentFrames = view._test_buttonContentFrames()
+        let trackFrames = view._test_quotaIndicatorTrackFrames()
+        for (frame, contentFrame) in zip(buttonFrames, contentFrames) {
             #expect(frame.minY >= 0)
             #expect(frame.maxY <= view.bounds.maxY)
+            #expect(abs((contentFrame?.midY ?? -1) - frame.height / 2) <= 0.5)
+        }
+        for (buttonFrame, trackFrame) in zip(buttonFrames.dropFirst(), trackFrames) {
+            #expect(trackFrame.minY >= buttonFrame.minY)
+            #expect(trackFrame.maxY <= buttonFrame.maxY)
         }
 
         #expect(view._test_rowCount() == 4)
-        #expect(view._test_rowHeight() == 44)
-        #expect(view.bounds.height == 188)
+        #expect(view._test_rowHeight() == 39)
+        #expect(view.bounds.height == 168)
     }
 }

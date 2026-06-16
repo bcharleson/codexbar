@@ -39,6 +39,31 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `automatic metric uses team budget for team-bound LiteLLM keys`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Personal"),
+            secondary: RateWindow(
+                usedPercent: 80,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Team"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .litellm,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 80)
+        #expect(window?.resetDescription == "Team")
+    }
+
+    @Test
     func `automatic metric uses constrained antigravity family lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Claude"),
@@ -54,6 +79,68 @@ struct MenuBarMetricWindowResolverTests {
 
         #expect(window?.usedPercent == 100)
         #expect(window?.resetDescription == "Gemini Pro")
+    }
+
+    @Test
+    func `automatic metric uses recognized antigravity gemini pool when claude gpt is reset only`() throws {
+        let resetOnlyReset = Date(timeIntervalSince1970: 1000)
+        let exhaustedReset = Date(timeIntervalSince1970: 2000)
+        let antigravitySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6",
+                    modelId: "claude-sonnet-4-6",
+                    remainingFraction: nil,
+                    resetTime: resetOnlyReset,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro",
+                    modelId: "gemini-3-1-pro",
+                    remainingFraction: 0,
+                    resetTime: exhaustedReset,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+        let snapshot = try antigravitySnapshot.toUsageSnapshot()
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetsAt == exhaustedReset)
+        #expect(snapshot.secondary == nil)
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 100)
+        #expect(window?.resetsAt == exhaustedReset)
+    }
+
+    @Test
+    func `automatic metric uses unclassified antigravity compact fallback`() throws {
+        let antigravitySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Experimental Model",
+                    modelId: "MODEL_PLACEHOLDER_NEW",
+                    remainingFraction: 0.36,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local)
+        let snapshot = try antigravitySnapshot.toUsageSnapshot()
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 64)
     }
 
     @Test

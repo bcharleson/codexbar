@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 
 extension StatusItemController {
@@ -20,7 +21,6 @@ extension StatusItemController {
         self.providerSelectionUIRefreshTask?.cancel()
         self.providerSelectionUIRefreshTask = Task { @MainActor [weak self] in
             await Task.yield()
-            try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled, let self else { return }
             self.refreshProviderSelectionRendering()
             self.providerSelectionUIRefreshTask = nil
@@ -34,7 +34,10 @@ extension StatusItemController {
         self.applyIcon(phase: phase)
     }
 
-    func navigateProviderSwitcher(_ direction: StatusItemMenuProviderNavigationDirection) {
+    func navigateProviderSwitcher(
+        _ direction: StatusItemMenuProviderNavigationDirection,
+        menu: NSMenu? = nil)
+    {
         guard self.shouldMergeIcons else { return }
         let enabledProviders = self.store.enabledProvidersForDisplay()
         guard enabledProviders.count > 1 else { return }
@@ -59,6 +62,12 @@ extension StatusItemController {
         let delta = direction == .next ? 1 : -1
         let nextIndex = (currentIndex + delta + selections.count) % selections.count
         let selection = selections[nextIndex]
+        let menuProvider: UsageProvider = switch selection {
+        case .overview:
+            self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex
+        case let .provider(provider):
+            provider
+        }
         self.preservingMergedSwitcherContentCachesDuringInvalidation {
             switch selection {
             case .overview:
@@ -70,7 +79,13 @@ extension StatusItemController {
                 self.lastMenuProvider = provider
             }
             self.lastMergedSwitcherSelection = selection
-            self.refreshProviderSelectionDependentUI(refreshOpenMenus: true, deferRendering: true)
+            self.refreshProviderSelectionDependentUI(deferRendering: true)
+        }
+        let trackedMenu = menu ?? self.providerSwitcherShortcutMenuID.flatMap { self.openMenus[$0] }
+        if let trackedMenu {
+            self.requestProviderSwitcherMenuRebuild(
+                trackedMenu,
+                provider: menuProvider)
         }
     }
 
