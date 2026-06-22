@@ -1,12 +1,103 @@
 # Changelog
 
-## 0.36.2 — Unreleased
+## 0.37.3 — Unreleased
 
-### Changed
-- Menu bar: reuse the icon-observation signature during provider refreshes instead of computing it twice. Thanks @abe238!
+## 0.37.2 — 2026-06-22
+
+### Added
+- Diagnostics: write redacted provider reports to a file with platform and app-version context. Thanks @Yuxin-Qiao!
+- CLI server: report the startup build version from `/health` so clients can detect stale helper processes after updates. Thanks @enieuwy!
 
 ### Fixed
+- Claude: pause background CLI usage probes briefly after rate limiting while keeping manual refresh available. Thanks @kiranmagic7!
+- Codex OAuth: publish refreshed `auth.json` credentials with private file permissions already applied. Thanks @Hinotoi-agent!
+- Provider endpoints: reject unsafe Deepgram, z.ai, and Xiaomi MiMo overrides before attaching credentials. Thanks @Hinotoi-agent!
+- Azure OpenAI: reject unsafe endpoint overrides before attaching API keys while keeping invalid configurations visible with an actionable error. Thanks @Hinotoi-agent!
+
+## 0.37.1 — 2026-06-21
+
+### Fixed
+- MiniMax: recover detailed token-plan windows from the remains API when the coding-plan page only exposes coarse usage. Thanks @Yuxin-Qiao!
+- Cost history: remove the redundant tooltip from submenu-backed Cost rows. Thanks @Zihao-Qi!
+- Menu refresh: keep the menu open and show in-place progress when Refresh is clicked. Thanks @elijahfriedman!
+- Menu: align provider usage-card spacing with the Overview layout. Thanks @Zihao-Qi!
+- Memory pressure: avoid actor-isolation crashes when system callbacks arrive on a utility queue. Thanks @Zihao-Qi!
+- Menu: remove extra separators and spacing around Storage, Cost, and Subscription Utilization rows. Thanks @elijahfriedman!
+- Antigravity: show limits as unavailable when OAuth identifies the account but quota endpoints deny access. Thanks @Yuxin-Qiao!
+
+## 0.37.0 — 2026-06-19
+
+### Added
+- Widgets: add single-window and combined burn-down charts for Codex and Claude session/weekly limits. Thanks @jamesjlopez!
+- AWS Bedrock: show optional rolling 14-day Claude token and request totals from CloudWatch. Thanks @zyaiire!
+- Codex: optionally show both session-window and weekly percentages in the compact menu bar label. Thanks @thepraggyverse!
+- Cursor: show personal on-demand spend alongside the shared team pool. Thanks @yashiels!
+- Documentation: link the community KDE Plasma panel integration. Thanks @tylxr59!
+- Codex: expose explicitly configured profile homes as switchable accounts without copying their credentials. Thanks @kiranmagic7!
+- Codex: show available manual rate-limit reset credits and their next expiry for signed-in OAuth accounts. Thanks @rogdex24!
+- Mistral: add Vibe monthly-plan usage and menu bar metric selection. Thanks @lfmundim!
+- Storage: show a compact segmented provider breakdown with an expandable Other group. Thanks @elijahfriedman!
+- Settings: add an optional enabled-first alphabetical sort for the Providers sidebar without changing custom order. Thanks @elijahfriedman!
+- Linux CLI: publish static musl release tarballs for x86_64 and aarch64. Thanks @Yuxin-Qiao!
+- Documentation: add safe troubleshooting for browser Keychain prompts that persist after uninstall. Thanks @Yuxin-Qiao!
+- Diagnostics: report provider-neutral usage confidence and mark fully decoded Codex OAuth windows exact. Thanks @Yuxin-Qiao!
+- Codex agents: add a read-only `codexbar` skill for bounded, redacted provider usage JSON. Thanks @coygeek!
+- Display: add a Hide critters option for plain menu bar quota capsules. Thanks @elijahfriedman!
+
+### Changed
+- Packaging: strip local symbols from release executables to reduce the installed app and download size. Thanks @jieshu666!
+- Logging: skip message, metadata, and redaction work for filtered or disabled log destinations. Thanks @ProspectOre!
+- Cost history: cache date parsers per thread to reduce repeated report-decoding overhead. Thanks @ProspectOre!
+- Linux CLI: accept an opt-in static SQLite library directory for musl builds. Thanks @Yuxin-Qiao!
+- Linux CLI: add musl source compatibility for static Linux SDK builds. Thanks @Yuxin-Qiao!
+- Cost history: resize the chart details to the hovered day's model breakdown instead of reserving the tallest day. Thanks @elijahfriedman!
+- Antigravity: use current backend quota labels in menus and widgets while preferring a usable quota lane over an exhausted one. Thanks @Yuxin-Qiao!
+- Pi: cache session filename and timestamp parsers to reduce cost-history refresh overhead. Thanks @ProspectOre!
+- Menu bar: reuse the icon-observation signature during provider refreshes instead of computing it twice. Thanks @abe238!
+- LiteLLM: show personal and team spend amounts directly on budget rows while suppressing duplicate budget sections. Thanks @hololee!
+
+### Fixed
+- Menu: align cost and utilization rows with provider content and use native bottom action items. Thanks @elijahfriedman!
+- Charts: keep hover selection on bar widths, preserve single-day details, and remove redundant cost-menu detail lines. Thanks @elijahfriedman!
+- Cost history: keep chart date labels aligned with their bars and visible without clipping. Thanks @elijahfriedman!
+- Claude settings: dim and disable Avoid Keychain prompts while global Keychain access is disabled. Thanks @Zihao-Qi!
+- Linux CLI: read OpenCode Go local SQLite usage in automatic mode and allow Command Code billing with a configured manual cookie.
+- MiniMax diagnostics: include safe per-service usage and boosted quota limits for mismatch reports. Thanks @sagelga!
+- Xiaomi MiMo: retry another imported browser session when a stale session redirects API requests to login. Thanks @Yuxin-Qiao!
+- MiniMax: retry the China API region when the global token endpoint reports a structured invalid-key response.
+- Menu refresh: scope manual refreshes to the visible provider, keep Command-R consistent with mouse refresh, and avoid animated refresh-row compositing. Thanks @jangisaac-dev!
+- Localization: improve Catalan app and website translations. Thanks @pmontp19!
+- Claude web: persist renewed session cookies after successful usage requests so imported sessions stay current. Thanks @ProspectOre!
+- Kiro: keep parsed usage available when the optional account probe times out or fails. Thanks @Yuxin-Qiao!
+- Cursor: ignore an exhausted Auto or API subquota only when another independent quota remains usable, while preserving the overall cap. Thanks @Yuxin-Qiao!
+- Memory: release idle OpenAI WebViews under system pressure without blocking the main thread. Thanks @ProspectOre!
+- Memory: trim rebuildable menu and OpenAI debug caches under system pressure. Thanks @ProspectOre!
+- Provider plans: keep Claude and Kiro plan matching on one rendered line to avoid bogus labels from adjacent usage hints. Thanks @elijahfriedman!
+- Antigravity: use current Gemini 5-hour and weekly quota-summary lanes for the compact menu bar icon and merged highest-usage selection. Thanks @Zihao-Qi!
+- Usage bars: render values rounded to 0% or 100% as fully empty or full. Thanks @Zihao-Qi!
+- Codex web: keep cookie-import deadlines responsive when browser cookie work blocks the shared worker pool.
+- z.ai: open the usage dashboard for the configured global or China API region. Thanks @renbaoshuo!
+- Usage dashboards: tint inline history bars with each provider's branding color. Thanks @elijahfriedman!
+- Command Code: avoid repeated depleted notifications when subscription lookup intermittently fails. Thanks @LPFchan!
+- Codex pace: extrapolate historically exhausted weeks for run-out forecasts and avoid contradictory reset headlines. Thanks @Yuxin-Qiao!
+- Localization: correct the German in-progress refresh label. Thanks @ChrisLauinger77!
+- Localization: correct misleading literal German UI translations. Thanks @madebyjulz!
+- Install docs: describe the official Homebrew cask as universal on Intel and Apple silicon. Thanks @ChrisGVE!
+- Settings: switch tabs immediately before animated window resizing and reduce Providers sidebar work. Thanks @elijahfriedman!
+- Windsurf: import complete Devin sessions from the current app origin before legacy browser storage. Thanks @kiranmagic7!
+- Antigravity: humanize raw model identifiers while preserving server-provided quota labels. Thanks @bcharleson!
+- Menu bar: show provider status markers only for the provider rendered in each icon. Thanks @Zihao-Qi!
+- Codex CLI: make automatic usage reads prefer OAuth and CLI sources instead of blocking on the optional web dashboard.
+- Codex web: apply `--web-timeout` to the full cookie import, account verification, retry, and dashboard fetch path.
+- OpenCode Go: allow configured manual cookies in the Linux CLI while keeping browser-cookie import gated to macOS. Thanks @Yuxin-Qiao!
+- Provider probes: cap captured subprocess output at 1 MiB per stream without dropping valid text at a truncated UTF-8 boundary. Thanks @ProspectOre!
+- Provider switcher: keep Codex quota rows visible when switching away and back during a manual refresh, including menus with usage-history sections. Thanks @Yuxin-Qiao!
+- Bedrock: ignore invalid billing dates when selecting the latest usage values. Thanks @ProspectOre!
+- Usage history: let opted-in providers persist weekly utilization and keep saved charts visible. Thanks @kiranmagic7!
 - Localization: improve Japanese terminology consistency and localize next-day reset times across all 21 app languages. Thanks @tukuyomil032!
+- Menu bar: keep visible quota values stable while a manual refresh is in flight without rewinding background-refresh countdowns. Thanks @Zihao-Qi!
+- Menu bar: stop informational usage-card rows from highlighting like clickable actions. Thanks @elijahfriedman!
+- Localization: validate placeholder integrity across every app language and repair malformed Vietnamese interpolation tokens. Thanks @Yuxin-Qiao!
 
 ## 0.36.1 — 2026-06-16
 
