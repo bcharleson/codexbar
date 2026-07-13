@@ -145,21 +145,12 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `selected provider sidebar palette uses contrasting selected text colors`() {
-        let palette = ProviderSidebarRowPalette(isSelected: true)
-
-        #expect(palette.primary.isEqual(NSColor.alternateSelectedControlTextColor))
-        #expect(palette.secondary.alphaComponent == 0.82)
-        #expect(palette.tertiary.alphaComponent == 0.65)
-    }
-
-    @Test
-    func `unselected provider sidebar palette uses standard label colors`() {
-        let palette = ProviderSidebarRowPalette(isSelected: false)
-
-        #expect(palette.primary.isEqual(NSColor.labelColor))
-        #expect(palette.secondary.isEqual(NSColor.secondaryLabelColor))
-        #expect(palette.tertiary.isEqual(NSColor.tertiaryLabelColor))
+    @MainActor
+    func `settings pane titles cover app panes and providers`() {
+        #expect(SettingsPane.general.title == L("tab_general"))
+        #expect(SettingsPane.about.title == L("tab_about"))
+        #expect(!SettingsPane.provider(.codex).title.isEmpty)
+        #expect(SettingsPane.provider(.codex) != SettingsPane.provider(.claude))
     }
 
     @Test
@@ -189,6 +180,51 @@ struct ProvidersPaneCoverageTests {
 
         settings.copilotBudgetExtrasEnabled = true
         #expect(pane._test_menuCardModel(for: .copilot).metrics.map(\.title).contains(budgetTitle))
+    }
+
+    @Test
+    func `codex provider preview follows spark visibility`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-codex-spark-preview")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: CodexAdditionalRateLimitMapper.sparkWindowID,
+                        title: "Codex Spark 5-hour",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: 300,
+                            resetsAt: now.addingTimeInterval(1800),
+                            resetDescription: nil)),
+                    NamedRateWindow(
+                        id: "codex-other-limit",
+                        title: "Other Codex limit",
+                        window: RateWindow(
+                            usedPercent: 30,
+                            windowMinutes: 1440,
+                            resetsAt: now.addingTimeInterval(3600),
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            provider: .codex)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        #expect(pane._test_menuCardModel(for: .codex).metrics.contains {
+            $0.id == CodexAdditionalRateLimitMapper.sparkWindowID
+        })
+
+        settings.codexSparkUsageVisible = false
+        let hiddenModel = pane._test_menuCardModel(for: .codex)
+        #expect(!hiddenModel.metrics.contains { $0.id == CodexAdditionalRateLimitMapper.sparkWindowID })
+        #expect(hiddenModel.metrics.contains { $0.id == "codex-other-limit" })
     }
 
     @Test
@@ -254,7 +290,7 @@ struct ProvidersPaneCoverageTests {
             ])
             #expect(picker?.options.first?.title == "Pay-as-you-go")
             #expect(picker?.options.last?.title == "Monthly Plan")
-            #expect(picker?.subtitle == "Shows current-month Mistral API spend in the menu bar.")
+            #expect(picker?.subtitle == "Choose Mistral API spend or Monthly Plan usage for the menu bar.")
         }
     }
 
@@ -270,6 +306,27 @@ struct ProvidersPaneCoverageTests {
                 MenuBarMetricPreference.automatic.rawValue,
             ])
             #expect(picker?.subtitle == "Shows Kimi K2 API-key credits in the menu bar.")
+        }
+    }
+
+    @Test
+    func `kimi menu bar metric picker preserves stored lane labels`() {
+        Self.withEnglishLocalization {
+            let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-kimi-picker")
+            let store = Self.makeUsageStore(settings: settings)
+            let pane = ProvidersPane(settings: settings, store: store)
+
+            let picker = pane._test_menuBarMetricPicker(for: .kimi)
+            #expect(picker?.options.map(\.id) == [
+                MenuBarMetricPreference.automatic.rawValue,
+                MenuBarMetricPreference.primary.rawValue,
+                MenuBarMetricPreference.secondary.rawValue,
+            ])
+            #expect(picker?.options.map(\.title) == [
+                "Automatic",
+                "Primary (Weekly)",
+                "Secondary (Rate Limit)",
+            ])
         }
     }
 
@@ -371,6 +428,18 @@ struct ProvidersPaneCoverageTests {
         let picker = pane._test_menuBarMetricPicker(for: .claude)
         let ids = picker?.options.map(\.id) ?? []
         #expect(ids.contains(MenuBarMetricPreference.extraUsage.rawValue))
+    }
+
+    @Test
+    func `claude menu bar metric picker includes session plus weekly lane`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-claude-session-weekly-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .claude)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.primaryAndSecondary.rawValue))
+        #expect(picker?.placement == .menuBar)
     }
 
     @Test

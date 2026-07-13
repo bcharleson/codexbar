@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+resolve_package_signing_mode() {
+  local requested="${CODEXBAR_SIGNING:-adhoc}"
+  case "$requested" in
+    adhoc|identity) ;;
+    *)
+      echo "ERROR: Unsupported CODEXBAR_SIGNING: $requested (expected adhoc or identity)" >&2
+      return 1
+      ;;
+  esac
+  SIGNING_MODE="$requested"
+}
+
 CONF=${1:-release}
 ALLOW_LLDB=${CODEXBAR_ALLOW_LLDB:-0}
-SIGNING_MODE=${CODEXBAR_SIGNING:-}
+SIGNING_MODE=
+resolve_package_signing_mode
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
@@ -336,12 +350,17 @@ strip_release_binary() {
 ensure_widget_extension_project() {
   local spec="$ROOT/WidgetExtension/project.yml"
   local project_dir="$ROOT/WidgetExtension/CodexBarWidgetExtension.xcodeproj"
-  if command -v xcodegen >/dev/null 2>&1; then
-    xcodegen generate --spec "$spec" --project "$ROOT/WidgetExtension" --quiet
-  elif [[ ! -f "$project_dir/project.pbxproj" ]]; then
+  if [[ -f "$project_dir/project.pbxproj" ]]; then
+    return
+  fi
+  if ! command -v xcodegen >/dev/null 2>&1; then
     echo "ERROR: Missing ${project_dir}; install xcodegen or restore the generated project." >&2
     exit 1
   fi
+
+  # The tracked project is authoritative. Regenerating it during packaging records the checkout
+  # directory's spelling in a package file reference and leaves release worktrees dirty.
+  xcodegen generate --spec "$spec" --project "$ROOT/WidgetExtension" --quiet
 }
 
 build_widget_extension() {
@@ -437,7 +456,7 @@ SPARKLE_SOURCE=$(codexbar_require_product_directory "$PREFERRED_BUILD_DIR" Spark
 cp -R "$SPARKLE_SOURCE" "$APP/Contents/Frameworks/"
 chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
-# Re-sign Sparkle and all nested components with Developer ID + timestamp
+# Re-sign Sparkle and all nested components with the selected package identity.
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   CODESIGN_ID="-"

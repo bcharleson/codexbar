@@ -2,6 +2,7 @@ import Foundation
 
 struct SettingsDefaultsState {
     var refreshFrequency: RefreshFrequency
+    var refreshAllProvidersOnMenuOpen: Bool
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
     var debugDisableKeychainAccess: Bool
@@ -12,12 +13,14 @@ struct SettingsDefaultsState {
     var statusChecksEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
     var quotaWarningNotificationsEnabled: Bool
+    var predictivePaceWarningNotificationsEnabled: Bool
     var quotaWarningThresholdsRaw: [Int]
     var quotaWarningSessionThresholdsRaw: [Int]
     var quotaWarningWeeklyThresholdsRaw: [Int]
     var quotaWarningSessionEnabled: Bool
     var quotaWarningWeeklyEnabled: Bool
     var quotaWarningSoundEnabled: Bool
+    var quotaWarningOnScreenAlertEnabled: Bool
     var quotaWarningMarkersVisible: Bool
     var weeklyProgressWorkDays: Int?
     var usageBarsShowUsed: Bool
@@ -26,6 +29,7 @@ struct SettingsDefaultsState {
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarHidesCritters: Bool
     var menuBarDisplayModeRaw: String?
+    var menuBarShowsResetTimeWhenExhausted: Bool
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
@@ -34,15 +38,18 @@ struct SettingsDefaultsState {
     var copilotIconSecondaryWindowIDRaw: String
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int
+    var costComparisonPeriodsEnabled: Bool
     var costSummaryDisplayStyleRaw: String
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
+    var confettiOnSessionLimitResetsEnabled: Bool
     var confettiOnWeeklyLimitResetsEnabled: Bool
     var menuBarShowsHighestUsage: Bool
     var claudeOAuthKeychainPromptModeRaw: String?
     var claudeOAuthKeychainReadStrategyRaw: String?
     var claudeWebExtrasEnabledRaw: Bool
     var showOptionalCreditsAndExtraUsage: Bool
+    var codexSparkUsageVisible: Bool
     var openAIWebAccessEnabled: Bool
     var openAIWebBatterySaverEnabled: Bool
     var providerStorageFootprintsEnabled: Bool
@@ -56,4 +63,6 @@ struct SettingsDefaultsState {
     var providersSortedAlphabetically: Bool
     var appLanguageRaw: String?
     var terminalAppRaw: String?
+    var agentSessionsEnabled: Bool
+    var agentSessionsManualHosts: String
 }

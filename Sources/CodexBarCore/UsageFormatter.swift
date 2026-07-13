@@ -50,14 +50,20 @@ public enum UsageFormatter {
         if let provider {
             return provider(key)
         }
+        #if canImport(ObjectiveC)
+        // Bundle(for:) requires Objective-C bundle introspection. Linux uses the English
+        // fallback below; app localization is injected through localizationProvider.
         let coreBundle = Bundle(for: BundleToken.self)
         let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
         if coreValue != key { return coreValue }
 
         let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
         if mainValue != key { return mainValue }
+        #endif
 
         switch key {
+        case "Updated relative %@": return "Updated %@"
+        case "Updated absolute %@": return "Updated %@"
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
         case "reset_tomorrow_format": return "tomorrow, %@"
@@ -78,12 +84,20 @@ public enum UsageFormatter {
         return String(format: format, locale: self.currentLocale(), arguments: args)
     }
 
+    public static func percentText(_ percent: Double, suffix: String) -> String {
+        let clamped = min(100, max(0, percent))
+        if clamped > 0, clamped < 1 {
+            return self.localized("<1%% %@", suffix)
+        }
+        return self.localized("%.0f%% %@", clamped, suffix)
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let suffix = showUsed
             ? self.localized("usage_percent_suffix_used")
             : self.localized("usage_percent_suffix_left")
-        return "\(self.percentString(percent)) \(suffix)"
+        return self.percentText(percent, suffix: suffix)
     }
 
     public static func percentString(_ percent: Double) -> String {
@@ -103,6 +117,7 @@ public enum UsageFormatter {
 
         if days > 0 {
             if hours > 0 { return "in \(days)d \(hours)h" }
+            if minutes > 0 { return "in \(days)d \(minutes)m" }
             return "in \(days)d"
         }
         if hours > 0 {
@@ -171,7 +186,7 @@ public enum UsageFormatter {
             let rel = RelativeDateTimeFormatter()
             rel.locale = self.currentLocale()
             rel.unitsStyle = .abbreviated
-            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
+            return self.localized("Updated relative %@", rel.localizedString(for: date, relativeTo: now))
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
@@ -183,7 +198,7 @@ public enum UsageFormatter {
             #endif
         } else {
             return self.localized(
-                "Updated %@",
+                "Updated absolute %@",
                 date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))
         }
     }
@@ -232,6 +247,16 @@ public enum UsageFormatter {
     /// regardless of the user's system locale (e.g., pt-BR users see $54.72 not US$ 54,72).
     public static func currencyString(_ value: Double, currencyCode: String) -> String {
         value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
+    }
+
+    public static func compactCurrencyString(_ value: Double, currencyCode: String) -> String {
+        if value != 0, abs(value) < 1 {
+            return self.currencyString(value, currencyCode: currencyCode)
+        }
+        return value.formatted(
+            .currency(code: currencyCode)
+                .precision(.fractionLength(0))
+                .locale(Locale(identifier: "en_US")))
     }
 
     public static func tokenCountString(_ value: Int) -> String {
@@ -343,6 +368,7 @@ public enum UsageFormatter {
     public static func modelDisplayName(_ raw: String) -> String {
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return raw }
+        if CostUsagePricing.isCodexUnattributedModel(cleaned) { return "Unknown model" }
 
         let patterns = [
             #"(?:-|\s)\d{8}$"#,

@@ -2,6 +2,10 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    func version(for provider: UsageProvider) -> String? {
+        self.versions[provider]
+    }
+
     var codexSnapshot: UsageSnapshot? {
         self.snapshots[.codex]
     }
@@ -56,6 +60,20 @@ extension UsageStore {
             return ZaiSettingsError.missingToken.errorDescription
         case .openrouter:
             return OpenRouterSettingsError.missingToken.errorDescription
+        case .crossmodel:
+            return CrossModelSettingsError.missingToken.errorDescription
+        case .clawrouter:
+            return ClawRouterUsageError.missingCredentials.errorDescription
+        case .sub2api:
+            let environment = ProviderRegistry.makeEnvironment(
+                base: self.environmentBase,
+                provider: provider,
+                settings: self.settings,
+                tokenOverride: nil)
+            if Sub2APISettingsReader.apiKey(environment: environment) == nil {
+                return Sub2APIUsageError.missingCredentials.errorDescription
+            }
+            return Sub2APIUsageError.missingBaseURL.errorDescription
         case .azureopenai:
             return AzureOpenAISettingsError.missingAPIKey.errorDescription
         case .elevenlabs:

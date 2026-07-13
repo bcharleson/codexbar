@@ -28,6 +28,17 @@ public struct CodexBarConfigIssue: Codable, Sendable, Equatable {
 }
 
 public enum CodexBarConfigValidator {
+    private static let enterpriseHostProviders: [UsageProvider] = [
+        .azureopenai,
+        .clawrouter,
+        .copilot,
+        .kimi,
+        .litellm,
+        .llmproxy,
+        .sub2api,
+        .wayfinder,
+    ]
+
     private static let workspaceIDProviders: [UsageProvider] = [
         .azureopenai,
         .openai,
@@ -91,7 +102,8 @@ public enum CodexBarConfigValidator {
         }
 
         if let source = entry.source, source == .api,
-           entry.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+           self.providerRequiresAPIKey(provider),
+           !self.hasConfiguredAPICredential(entry)
         {
             issues.append(CodexBarConfigIssue(
                 severity: .warning,
@@ -136,6 +148,8 @@ public enum CodexBarConfigValidator {
 
         self.validateSecretKey(entry, issues: &issues)
 
+        self.validateSub2APIBaseURL(entry, issues: &issues)
+
         self.validateRegion(entry, issues: &issues)
 
         self.validateZaiTeamContext(entry, issues: &issues)
@@ -161,8 +175,7 @@ public enum CodexBarConfigValidator {
                 provider: provider,
                 field: "enterpriseHost",
                 code: "enterprise_host_unused",
-                message: "enterpriseHost is set but only azureopenai, copilot, kimi, " +
-                    "llmproxy, and litellm support enterpriseHost."))
+                message: "enterpriseHost is set but only \(self.enterpriseHostProviderList) support enterpriseHost."))
         }
 
         if let tokenAccounts = entry.tokenAccounts, !tokenAccounts.accounts.isEmpty,
@@ -180,7 +193,8 @@ public enum CodexBarConfigValidator {
     private static func validateSecretKey(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
         guard let secretKey = entry.secretKey,
               !secretKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              entry.id != .bedrock
+              entry.id != .bedrock,
+              entry.id != .doubao
         else {
             return
         }
@@ -190,7 +204,24 @@ public enum CodexBarConfigValidator {
             provider: entry.id,
             field: "secretKey",
             code: "secret_key_unused",
-            message: "secretKey is set but only bedrock uses secretKey."))
+            message: "secretKey is set but only bedrock and doubao use secretKey."))
+    }
+
+    private static func validateSub2APIBaseURL(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
+        guard entry.id == .sub2api,
+              let raw = entry.enterpriseHost?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty,
+              Sub2APISettingsReader.baseURL(environment: [Sub2APISettingsReader.baseURLEnvironmentKey: raw]) == nil
+        else {
+            return
+        }
+
+        issues.append(CodexBarConfigIssue(
+            severity: .error,
+            provider: .sub2api,
+            field: "enterpriseHost",
+            code: "invalid_enterprise_host",
+            message: Sub2APISettingsError.invalidBaseURL.errorDescription ?? "Invalid sub2api base URL."))
     }
 
     private static func validateZaiTeamContext(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
@@ -232,12 +263,26 @@ public enum CodexBarConfigValidator {
     }
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {
-        switch provider {
-        case .azureopenai, .copilot, .kimi, .llmproxy, .litellm:
-            true
-        default:
-            false
+        self.enterpriseHostProviders.contains(provider)
+    }
+
+    private static func providerRequiresAPIKey(_ provider: UsageProvider) -> Bool {
+        provider != .wayfinder
+    }
+
+    private static func hasConfiguredAPICredential(_ entry: ProviderConfig) -> Bool {
+        if let apiKey = entry.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            return true
         }
+        return entry.tokenAccounts?.accounts.contains(where: { account in
+            let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !token.isEmpty &&
+                TokenAccountSupportCatalog.envOverride(for: entry.id, token: token)?.isEmpty == false
+        }) == true
+    }
+
+    private static var enterpriseHostProviderList: String {
+        self.formattedProviderList(self.enterpriseHostProviders)
     }
 
     private static func validateRegion(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
@@ -270,6 +315,13 @@ public enum CodexBarConfigValidator {
                 isValid: AlibabaCodingPlanAPIRegion(rawValue: region) != nil,
                 displayName: "Alibaba Coding Plan",
                 issues: &issues)
+        case .alibabatokenplan:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: AlibabaTokenPlanAPIRegion(rawValue: region) != nil,
+                displayName: "Alibaba Token Plan",
+                issues: &issues)
         case .moonshot:
             self.validateKnownRegion(
                 region,
@@ -277,7 +329,7 @@ public enum CodexBarConfigValidator {
                 isValid: MoonshotRegion(rawValue: region) != nil,
                 displayName: "Moonshot",
                 issues: &issues)
-        case .bedrock:
+        case .bedrock, .doubao:
             break
         default:
             issues.append(CodexBarConfigIssue(

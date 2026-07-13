@@ -1005,7 +1005,9 @@ public struct AntigravityStatusProbe: Sendable {
         return first
     }
 
-    private static func detectProcessInfos(
+    /// Internal (not private): called by AntigravityCLIHTTPSFetchStrategy
+    /// .liveWarmAgyDependencies to discover an already-running `agy` for reuse.
+    static func detectProcessInfos(
         timeout: TimeInterval,
         scope: ProcessScope = .ideAndCLI) async throws -> [ProcessInfoResult]
     {
@@ -1186,49 +1188,6 @@ public struct AntigravityStatusProbe: Sendable {
     private static func extractPort(_ flag: String, from command: String) -> Int? {
         guard let raw = extractFlag(flag, from: command) else { return nil }
         return Int(raw)
-    }
-
-    static func listeningPorts(pid: Int, timeout: TimeInterval) async throws -> [Int] {
-        let lsof = ["/usr/sbin/lsof", "/usr/bin/lsof"].first(where: {
-            FileManager.default.isExecutableFile(atPath: $0)
-        })
-
-        guard let lsof else {
-            throw AntigravityStatusProbeError.portDetectionFailed("lsof not available")
-        }
-
-        let env = ProcessInfo.processInfo.environment
-        let result: SubprocessResult
-        do {
-            result = try await SubprocessRunner.run(
-                binary: lsof,
-                arguments: ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)],
-                environment: env,
-                timeout: timeout,
-                label: "antigravity-lsof")
-        } catch let SubprocessRunnerError.nonZeroExit(code, stderr)
-            where code == 1 && stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
-        }
-        let ports = Self.parseListeningPorts(result.stdout)
-        if ports.isEmpty {
-            throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
-        }
-        return ports
-    }
-
-    private static func parseListeningPorts(_ output: String) -> [Int] {
-        guard let regex = try? NSRegularExpression(pattern: #":(\d+)\s+\(LISTEN\)"#) else { return [] }
-        let range = NSRange(output.startIndex..<output.endIndex, in: output)
-        var ports: Set<Int> = []
-        regex.enumerateMatches(in: output, options: [], range: range) { match, _, _ in
-            guard let match,
-                  let range = Range(match.range(at: 1), in: output),
-                  let value = Int(output[range]) else { return }
-            ports.insert(value)
-        }
-        return ports.sorted()
     }
 
     static func connectionCandidates(

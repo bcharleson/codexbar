@@ -43,6 +43,30 @@ public enum KeychainCacheStore {
     private static let cacheLabel = "CodexBar Cache"
     private nonisolated(unsafe) static var globalServiceOverride: String?
     @TaskLocal private static var serviceOverride: String?
+    #if DEBUG
+    @TaskLocal private static var operationRecorder: OperationRecorder?
+
+    enum Operation: Equatable, Sendable {
+        case load
+        case store
+        case clear
+    }
+
+    final class OperationRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recordedOperations: [Operation] = []
+
+        var operations: [Operation] {
+            self.lock.withLock { self.recordedOperations }
+        }
+
+        func record(_ operation: Operation) {
+            self.lock.withLock {
+                self.recordedOperations.append(operation)
+            }
+        }
+    }
+    #endif
     #if DEBUG && os(macOS)
     @TaskLocal private static var loadFailureStatusOverride: OSStatus?
     @TaskLocal private static var storeFailureStatusOverride: OSStatus?
@@ -63,6 +87,9 @@ public enum KeychainCacheStore {
         key: Key,
         as type: Entry.Type = Entry.self) -> LoadResult<Entry>
     {
+        #if DEBUG
+        self.operationRecorder?.record(.load)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.loadFailureStatusOverride {
             return self.loadResultForKeychainReadFailure(status: status, key: key)
@@ -83,7 +110,7 @@ public enum KeychainCacheStore {
         KeychainNoUIQuery.apply(to: &query)
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             guard let data = result as? Data, !data.isEmpty else {
@@ -110,6 +137,9 @@ public enum KeychainCacheStore {
 
     @discardableResult
     public static func storeResult(key: Key, entry: some Codable) -> Bool {
+        #if DEBUG
+        self.operationRecorder?.record(.store)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.storeFailureStatusOverride {
             self.log.error("Keychain cache store failed (\(key.account)): \(status)")
@@ -134,7 +164,7 @@ public enum KeychainCacheStore {
         ]
         KeychainNoUIQuery.apply(to: &query)
 
-        let updateStatus = SecItemUpdate(
+        let updateStatus = KeychainSecurity.update(
             query as CFDictionary,
             [kSecValueData as String: data] as CFDictionary)
         if updateStatus == errSecSuccess {
@@ -153,7 +183,7 @@ public enum KeychainCacheStore {
             addQuery[kSecAttrAccess as String] = access
         }
 
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        let addStatus = KeychainSecurity.add(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
             self.log.error("Keychain cache add failed (\(key.account)): \(addStatus)")
         }
@@ -169,6 +199,9 @@ public enum KeychainCacheStore {
     }
 
     public static func clearResult(key: Key) -> ClearResult {
+        #if DEBUG
+        self.operationRecorder?.record(.clear)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.clearFailureStatusOverride {
             return self.clearResultForKeychainDeleteStatus(status, key: key)
@@ -185,7 +218,7 @@ public enum KeychainCacheStore {
             kSecAttrAccount as String: key.account,
         ]
         KeychainNoUIQuery.apply(to: &query)
-        return self.clearResultForKeychainDeleteStatus(SecItemDelete(query as CFDictionary), key: key)
+        return self.clearResultForKeychainDeleteStatus(KeychainSecurity.delete(query as CFDictionary), key: key)
         #else
         return .failed
         #endif
@@ -220,7 +253,7 @@ public enum KeychainCacheStore {
         KeychainNoUIQuery.apply(to: &query)
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         return self.keysResultForKeychainStatus(status, category: category, result: result)
         #else
         return .failed
@@ -261,6 +294,30 @@ public enum KeychainCacheStore {
     public static var currentServiceOverrideForTesting: String? {
         self.serviceOverride
     }
+
+    #if DEBUG
+    static func withOperationRecorderForTesting<T>(
+        _ recorder: OperationRecorder?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$operationRecorder.withValue(recorder) {
+            try operation()
+        }
+    }
+
+    static func withOperationRecorderForTesting<T>(
+        _ recorder: OperationRecorder?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$operationRecorder.withValue(recorder) {
+            try await operation()
+        }
+    }
+
+    static var currentOperationRecorderForTesting: OperationRecorder? {
+        self.operationRecorder
+    }
+    #endif
 
     static var canUseRealKeychainForTesting: Bool {
         self.canUseRealKeychain
@@ -343,14 +400,9 @@ public enum KeychainCacheStore {
 
     #if DEBUG
     private static var shouldUseImplicitTestStore: Bool {
-        self.isRunningUnderTests && !self.canUseRealKeychain
-    }
-
-    private static var isRunningUnderTests: Bool {
-        let processName = ProcessInfo.processInfo.processName
-        return processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        KeychainTestSafety.isRunningUnderTests(
+            processName: ProcessInfo.processInfo.processName,
+            environment: ProcessInfo.processInfo.environment) && !self.canUseRealKeychain
     }
     #else
     private static var shouldUseImplicitTestStore: Bool {
