@@ -141,10 +141,24 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct CursorProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        /// Whether the Grok Bot weekly window renders on the Cursor card.
+        public let grokBotWindowEnabled: Bool
 
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+        public init(
+            cookieSource: ProviderCookieSource,
+            manualCookieHeader: String?,
+            grokBotWindowEnabled: Bool = true)
+        {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.grokBotWindowEnabled = grokBotWindowEnabled
+        }
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.init(
+                cookieSource: cookieSource,
+                manualCookieHeader: manualCookieHeader,
+                grokBotWindowEnabled: true)
         }
     }
 

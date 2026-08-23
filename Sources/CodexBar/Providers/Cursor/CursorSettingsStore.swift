@@ -22,16 +22,32 @@ extension SettingsStore {
         }
     }
 
+    /// Whether the Grok Bot weekly usage window renders on the Cursor card.
+    /// Data comes from Cursor's GetSandUsageStatus RPC (Grok Bot is Cursor-billed).
+    var cursorGrokBotWindowEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .cursor)?.grokBotWindowEnabled ?? true }
+        set {
+            self.updateProviderConfig(provider: .cursor) { entry in
+                entry.grokBotWindowEnabled = newValue
+            }
+        }
+    }
+
     func ensureCursorCookieLoaded() {}
 }
 
 extension SettingsStore {
     func cursorSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .CursorProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .cursor,
-            configuredSource: self.cursorCookieSource,
-            configuredHeader: self.cursorCookieHeader,
-            tokenOverride: tokenOverride)
+        let cookieSnapshot: ProviderSettingsSnapshot.CursorProviderSettings = self
+            .resolvedCookieSettings(
+                provider: .cursor,
+                configuredSource: self.cursorCookieSource,
+                configuredHeader: self.cursorCookieHeader,
+                tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: cookieSnapshot.cookieSource,
+            manualCookieHeader: cookieSnapshot.manualCookieHeader,
+            grokBotWindowEnabled: self.cursorGrokBotWindowEnabled)
     }
 }

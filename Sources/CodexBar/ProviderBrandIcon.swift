@@ -27,10 +27,21 @@ enum ProviderBrandIcon {
         }
 
         let baseName = ProviderDescriptorRegistry.descriptor(for: provider).branding.iconResourceName
-        guard let bundle = self.resourceBundle else {
+        guard let image = Self.image(resourceNamed: baseName) else {
             return nil
         }
-        guard let url = bundle.url(forResource: baseName, withExtension: "svg"),
+        self.cache[provider] = image
+        return image
+    }
+
+    /// Loads a provider icon SVG by resource name (for branded sub-features that
+    /// ride on another provider's card, e.g. Grok Bot on Cursor).
+    static func image(resourceNamed baseName: String) -> NSImage? {
+        if let cached = self.resourceCache[baseName] {
+            return cached
+        }
+        guard let bundle = self.resourceBundle,
+              let url = bundle.url(forResource: baseName, withExtension: "svg"),
               let image = NSImage(contentsOf: url)
         else {
             return nil
@@ -38,11 +49,14 @@ enum ProviderBrandIcon {
 
         image.size = self.size
         image.isTemplate = true
-        self.cache[provider] = image
+        self.resourceCache[baseName] = image
         return image
     }
 
+    private static var resourceCache: [String: NSImage] = [:]
+
     static func resetCacheForTesting() {
         self.cache.removeAll()
+        self.resourceCache.removeAll()
     }
 }

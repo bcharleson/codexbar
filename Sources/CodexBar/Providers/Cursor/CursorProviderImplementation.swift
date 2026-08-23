@@ -15,6 +15,40 @@ struct CursorProviderImplementation: ProviderImplementation {
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.cursorCookieSource
         _ = settings.cursorCookieHeader
+        _ = settings.cursorGrokBotWindowEnabled
+    }
+
+    @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        let binding = Binding(
+            get: { context.settings.cursorGrokBotWindowEnabled },
+            set: { context.settings.cursorGrokBotWindowEnabled = $0 })
+
+        let statusText: () -> String? = {
+            guard context.settings.cursorGrokBotWindowEnabled,
+                  let window = context.store.snapshot(for: .cursor)?
+                  .extraRateWindows?.first(where: { $0.id == "grokbot-weekly" })
+            else { return nil }
+            let reset = window.window.resetsAt.map {
+                " · resets " + UsageFormatter.resetDescription(from: $0)
+            } ?? ""
+            return "Grok Bot weekly pool \(Int(window.window.usedPercent))% used\(reset)"
+        }
+
+        var toggle = ProviderSettingsToggleDescriptor(
+                id: "cursor-grokbot-window",
+                title: "Grok Bot weekly usage",
+                subtitle: "Shows the Grok Bot weekly pool on the Cursor card. Grok Bot is "
+                    + "metered on your Cursor account, so it uses the same session.",
+                binding: binding,
+                statusText: statusText,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil)
+        toggle.iconResourceName = "ProviderIcon-grok"
+        return [toggle]
     }
 
     @MainActor

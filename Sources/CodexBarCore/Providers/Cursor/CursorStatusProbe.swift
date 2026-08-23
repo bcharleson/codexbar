@@ -414,6 +414,48 @@ protocol CursorAppAuthSessionProviding: Sendable {
     func loadSession() throws -> CursorAppAuthSession?
 }
 
+// MARK: - Grok Bot Weekly Window Enrichment
+
+extension CursorGrokBotUsageProbe {
+    /// Best-effort Grok Bot fetch: requires the app-local Bearer token; returns nil
+    /// when the session is unavailable, expired, or the RPC rejects it.
+    func fetchIfSessionUsable(
+        _ store: any CursorAppAuthSessionProviding) async -> CursorGrokBotUsageStatus?
+    {
+        guard let session = try? store.loadSession(), session.isUsable else {
+            return nil
+        }
+        return await self.fetch(accessToken: session.accessToken)
+    }
+}
+
+extension CursorStatusSnapshot {
+    /// Returns a copy with the Grok Bot weekly window attached.
+    func withGrokBotWindow(_ status: CursorGrokBotUsageStatus) -> CursorStatusSnapshot {
+        CursorStatusSnapshot(
+            planPercentUsed: self.planPercentUsed,
+            autoPercentUsed: self.autoPercentUsed,
+            apiPercentUsed: self.apiPercentUsed,
+            planUsedUSD: self.planUsedUSD,
+            planLimitUSD: self.planLimitUSD,
+            onDemandUsedUSD: self.onDemandUsedUSD,
+            onDemandLimitUSD: self.onDemandLimitUSD,
+            teamOnDemandUsedUSD: self.teamOnDemandUsedUSD,
+            teamOnDemandLimitUSD: self.teamOnDemandLimitUSD,
+            billingCycleStart: self.billingCycleStart,
+            billingCycleEnd: self.billingCycleEnd,
+            membershipType: self.membershipType,
+            accountEmail: self.accountEmail,
+            accountName: self.accountName,
+            rawJSON: self.rawJSON,
+            requestsUsed: self.requestsUsed,
+            requestsLimit: self.requestsLimit,
+            grokBotWeeklyPercentUsed: status.usagePercent.map { max(0, min(100, $0)) },
+            grokBotResetsAt: status.resetsAt,
+            grokBotPlanLabel: status.grokPlanLabel)
+    }
+}
+
 struct CursorAppAuthStore: CursorAppAuthSessionProviding {
     private static let defaultDBPath: String = Self.resolveDefaultDBPath()
 
@@ -553,6 +595,17 @@ public struct CursorStatusSnapshot: Sendable {
     /// Request limit (non-nil indicates legacy request-based plan)
     public let requestsLimit: Int?
 
+    // MARK: - Grok Bot Weekly Window
+
+    /// Percent of the included weekly Grok Bot pool used, from Cursor's
+    /// GetSandUsageStatus RPC. Nil when the RPC was unavailable or rejected —
+    /// never synthesized to zero.
+    public let grokBotWeeklyPercentUsed: Double?
+    /// When the Grok Bot weekly pool resets.
+    public let grokBotResetsAt: Date?
+    /// Plan label reported alongside the Grok Bot window (e.g. "Grok Bot Plan").
+    public let grokBotPlanLabel: String?
+
     /// Whether this is a legacy request-based plan (vs token-based)
     public var isLegacyRequestPlan: Bool {
         self.requestsLimit != nil
@@ -575,7 +628,10 @@ public struct CursorStatusSnapshot: Sendable {
         accountName: String?,
         rawJSON: String?,
         requestsUsed: Int? = nil,
-        requestsLimit: Int? = nil)
+        requestsLimit: Int? = nil,
+        grokBotWeeklyPercentUsed: Double? = nil,
+        grokBotResetsAt: Date? = nil,
+        grokBotPlanLabel: String? = nil)
     {
         self.planPercentUsed = planPercentUsed
         self.autoPercentUsed = autoPercentUsed
@@ -594,6 +650,9 @@ public struct CursorStatusSnapshot: Sendable {
         self.rawJSON = rawJSON
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
+        self.grokBotWeeklyPercentUsed = grokBotWeeklyPercentUsed
+        self.grokBotResetsAt = grokBotResetsAt
+        self.grokBotPlanLabel = grokBotPlanLabel
     }
 
     /// Convert to UsageSnapshot for the common provider interface
@@ -679,6 +738,17 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        // Grok Bot weekly pool (from Cursor's GetSandUsageStatus RPC) as an extra
+        // named window. Only present when the RPC returned real usage.
+        let grokBotWindows: [NamedRateWindow]? = self.grokBotWeeklyPercentUsed.map { pct in
+            let window = RateWindow(
+                usedPercent: max(0, min(100, pct)),
+                windowMinutes: nil,
+                resetsAt: self.grokBotResetsAt,
+                resetDescription: self.grokBotResetsAt.map { Self.formatResetDate($0) })
+            return [NamedRateWindow(id: "grokbot-weekly", title: "Grok Bot", window: window)]
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .cursor,
             accountEmail: self.accountEmail,
@@ -688,6 +758,7 @@ public struct CursorStatusSnapshot: Sendable {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: grokBotWindows,
             providerCost: providerCost,
             cursorRequests: cursorRequests,
             updatedAt: Date(),
@@ -889,6 +960,12 @@ public actor CursorSessionStore {
 public struct CursorStatusProbe: Sendable {
     public let baseURL: URL
     public var timeout: TimeInterval = 15.0
+    /// Whether the Grok Bot weekly window is fetched and attached.
+    ///
+    /// Opt-in: production entry points (provider fetch strategy, debug log builder)
+    /// enable it based on user settings. Defaults to off so direct constructions
+    /// (unit tests, ad-hoc probes) stay deterministic and never issue the extra RPC.
+    public var isGrokBotWindowEnabled = false
     private let browserDetection: BrowserDetection
     private let browserCookieImportOrder: BrowserCookieImportOrder
     private let urlSession: any ProviderHTTPTransport
@@ -1213,11 +1290,27 @@ public struct CursorStatusProbe: Sendable {
             combinedRawJSON = (combinedRawJSON ?? "") + "\n\n--- /api/usage response ---\n" + usageJSON
         }
 
-        return self.parseUsageSummary(
+        var snapshot = self.parseUsageSummary(
             usageSummary,
             userInfo: userInfo,
             rawJSON: combinedRawJSON,
             requestUsage: requestUsage)
+
+        // Best-effort Grok Bot weekly window (separate RPC, Bearer auth). A failure
+        // here must never invalidate the main Cursor snapshot — just no extra window.
+        if self.isGrokBotWindowEnabled,
+           let grokBot = await Self.grokBotUsageProbe(urlSession: self.urlSession)
+               .fetchIfSessionUsable(self.appAuthStore)
+        {
+            snapshot = snapshot.withGrokBotWindow(grokBot)
+        }
+
+        return snapshot
+    }
+
+    /// Builds a Grok Bot probe for this environment. Exposed for testing overrides.
+    static func grokBotUsageProbe(urlSession: any ProviderHTTPTransport) -> CursorGrokBotUsageProbe {
+        CursorGrokBotUsageProbe(urlSession: urlSession)
     }
 
     private func fetchUsageSummary(cookieHeader: String) async throws -> (CursorUsageSummary, String) {

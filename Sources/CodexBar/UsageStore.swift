@@ -1105,7 +1105,8 @@ extension UsageStore {
                     return await Self.debugCursorLog(
                         browserDetection: browserDetection,
                         cursorCookieSource: cursorCookieSource,
-                        cursorCookieHeader: cursorCookieHeader)
+                        cursorCookieHeader: cursorCookieHeader,
+                        grokBotWindowEnabled: self.settings.cursorGrokBotWindowEnabled)
                 case .minimax:
                     let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
                     let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
@@ -1280,13 +1281,15 @@ extension UsageStore {
     private static func debugCursorLog(
         browserDetection: BrowserDetection,
         cursorCookieSource: ProviderCookieSource,
-        cursorCookieHeader: String) async -> String
+        cursorCookieHeader: String,
+        grokBotWindowEnabled: Bool) async -> String
     {
         await runWithTimeout(seconds: 15) {
             var lines: [String] = []
 
             do {
-                let probe = CursorStatusProbe(browserDetection: browserDetection)
+                var probe = CursorStatusProbe(browserDetection: browserDetection)
+                probe.isGrokBotWindowEnabled = grokBotWindowEnabled
                 let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual,
                                                         let normalizedHeader = CookieHeaderNormalizer
                                                             .normalize(cursorCookieHeader)

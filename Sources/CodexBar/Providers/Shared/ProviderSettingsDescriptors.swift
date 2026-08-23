@@ -76,6 +76,10 @@ struct ProviderSettingsToggleDescriptor: Identifiable {
     /// Optional short status text shown under the toggle when enabled.
     let statusText: (() -> String?)?
 
+    /// Optional provider icon resource name (e.g. "ProviderIcon-grok") rendered
+    /// next to the title. Nil keeps the plain text-only row.
+    var iconResourceName: String? = nil
+
     /// Optional actions shown under the toggle when enabled.
     let actions: [ProviderSettingsActionDescriptor]
 

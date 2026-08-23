@@ -10,9 +10,19 @@ struct ProviderSettingsToggleRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(L(self.toggle.title))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isEnabled ? .primary : .tertiary)
+                    HStack(alignment: .center, spacing: 6) {
+                        if let iconResourceName = self.toggle.iconResourceName,
+                           let icon = ProviderBrandIcon.image(resourceNamed: iconResourceName)
+                        {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 16, height: 16)
+                                .foregroundStyle(isEnabled ? .primary : .tertiary)
+                        }
+                        Text(L(self.toggle.title))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isEnabled ? .primary : .tertiary)
+                    }
                     Text(L(self.toggle.subtitle))
                         .font(.footnote)
                         .foregroundStyle(isEnabled ? .secondary : .tertiary)

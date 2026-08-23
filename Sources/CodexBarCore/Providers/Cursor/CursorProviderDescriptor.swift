@@ -51,7 +51,8 @@ struct CursorStatusFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = CursorStatusProbe(browserDetection: context.browserDetection)
+        var probe = CursorStatusProbe(browserDetection: context.browserDetection)
+        probe.isGrokBotWindowEnabled = context.settings?.cursor?.grokBotWindowEnabled ?? true
         let manual = Self.manualCookieHeader(from: context)
         let snap = try await probe.fetch(cookieHeaderOverride: manual)
         return self.makeResult(

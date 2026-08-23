@@ -431,6 +431,14 @@ enum CLIRenderer {
                 resetStyle: resetStyle,
                 now: now))
         }
+        for namedWindow in snapshot.extraRateWindows ?? [] where namedWindow.usageKnown {
+            metrics.append(self.makeCardMetric(
+                provider: provider,
+                label: namedWindow.title,
+                window: namedWindow.window,
+                resetStyle: resetStyle,
+                now: now))
+        }
         return metrics
     }
 

@@ -128,6 +128,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var kiloEnabledOrganizationIDs: [String]?
     public var awsProfile: String?
     public var awsAuthMode: String?
+    public var grokBotWindowEnabled: Bool?
 
     public init(
         id: UsageProvider,
@@ -150,7 +151,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         kiloKnownOrganizations: [KiloOrganization]? = nil,
         kiloEnabledOrganizationIDs: [String]? = nil,
         awsProfile: String? = nil,
-        awsAuthMode: String? = nil)
+        awsAuthMode: String? = nil,
+        grokBotWindowEnabled: Bool? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -173,6 +175,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs
         self.awsProfile = awsProfile
         self.awsAuthMode = awsAuthMode
+        self.grokBotWindowEnabled = grokBotWindowEnabled
     }
 
     public var sanitizedAPIKey: String? {
