@@ -20,7 +20,7 @@ public enum MuseUsageError: LocalizedError, Sendable, Equatable {
         case .keychainAccessNotGranted:
             "Muse Code credentials are in Keychain, but CodexBar is not allowed to read them. "
                 + "In Keychain Access, open “\(MuseCredentials.keychainService)” → Access Control, "
-                + "add CodexBar, then refresh."
+                + "add CodexBar (for CLI use, also Contents/Helpers/CodexBarCLI in CodexBar.app), then refresh."
         case .keychainUnavailable:
             "Muse Code credentials are in Keychain but could not be read right now. "
                 + "If the login Keychain is locked, unlock it, then refresh."

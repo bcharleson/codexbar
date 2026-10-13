@@ -94,6 +94,7 @@ struct MuseCredentialsTests {
         let message = try #require(MuseUsageError.keychainAccessNotGranted.errorDescription)
         #expect(message.contains("Keychain Access"))
         #expect(message.contains(MuseCredentials.keychainService))
+        #expect(message.contains("CodexBarCLI"))
         #expect(!message.contains("Disable Keychain access"))
     }
 

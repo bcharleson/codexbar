@@ -40,6 +40,15 @@ struct MuseKeychainAccessTests {
     }
 
     @Test
+    func `a temporary interactive read failure stays unavailable instead of a denial`() throws {
+        let run = try Self.fetchToken(
+            outcome: .interactionRequired, interaction: .userInitiated, readStatus: errSecNotAvailable)
+        #expect(run.error == .keychainUnavailable)
+        #expect(run.token == nil)
+        #expect(run.events == ["preflight", "explain museToken", "read interactive"])
+    }
+
+    @Test
     func `without an explanation alert a user action never reads interactively`() throws {
         let run = try Self.fetchToken(
             outcome: .interactionRequired, interaction: .userInitiated, explainsPrompt: false)

@@ -151,7 +151,19 @@ public enum MuseCredentials {
         case errSecItemNotFound:
             return nil
         default:
-            throw allowPrompt ? MuseUsageError.keychainAccessNotGranted : MuseUsageError.keychainUnavailable
+            if allowPrompt, Self.isAuthorizationDenial(status) {
+                throw MuseUsageError.keychainAccessNotGranted
+            }
+            throw MuseUsageError.keychainUnavailable
+        }
+    }
+
+    private static func isAuthorizationDenial(_ status: OSStatus) -> Bool {
+        switch status {
+        case errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem, errSecInteractionNotAllowed:
+            true
+        default:
+            false
         }
     }
     #endif
