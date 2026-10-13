@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Muse Code: a manual app refresh can now earn the Keychain grant for the Muse login through one explained system prompt (background refreshes and the CLI still never prompt), and a login CodexBar is not allowed to read names the Keychain Access grant instead of the generic prompt-required message, which remains for transient Keychain failures (#4487). Thanks @bcharleson!
 - OpenCode Go: cache unchanged local history scans with bounded memory and discover permitted browser sessions in Auto before falling back to marked estimates (#4410, #4445). Thanks @JackHo12 and @djbclark!
 
 - Codex costs: price ChatGPT-created Auto-review requests from October 6 at $0 so they no longer make otherwise complete costs appear as a lower bound; keep their tokens in totals and honor explicit custom prices (#4452, #4453). Thanks @gabrielrojasc!

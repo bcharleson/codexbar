@@ -1258,6 +1258,7 @@
 "Copy path" = "Kopiera sökväg";
 "Paste a Cookie header from %@." = "Klistra in en Cookie-header från %@.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om OAuth-token för Claude Code så att din Claude-användning kan hämtas. Klicka på OK för att fortsätta.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om inloggningstoken för Muse Code så att din Muse Code-prenumerationsanvändning kan hämtas. Klicka på OK för att fortsätta.";
 "Base URL for the LLM-API-Key-Proxy instance." = "Bas-URL för LLM-API-Key-Proxy-instansen.";
 "Paste a Cookie or Authorization header from %@." = "Klistra in en Cookie- eller Authorization-header från %@.";
 "stale data" = "inaktuella data";

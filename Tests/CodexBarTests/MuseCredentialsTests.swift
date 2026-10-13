@@ -86,7 +86,14 @@ struct MuseCredentialsTests {
     @Test
     func `prompt-required Keychain error stays distinct from the disabled-access toggle`() throws {
         let message = try #require(MuseUsageError.keychainUnavailable.errorDescription)
-        #expect(message.contains("could not be read without a prompt"))
+        #expect(!message.contains("Disable Keychain access"))
+    }
+
+    @Test
+    func `not-granted Keychain error names the Keychain Access grant for the Muse item`() throws {
+        let message = try #require(MuseUsageError.keychainAccessNotGranted.errorDescription)
+        #expect(message.contains("Keychain Access"))
+        #expect(message.contains(MuseCredentials.keychainService))
         #expect(!message.contains("Disable Keychain access"))
     }
 

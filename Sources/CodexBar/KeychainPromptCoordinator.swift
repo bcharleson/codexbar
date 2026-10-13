@@ -10,6 +10,9 @@ private enum KeychainPromptMessage {
     static let claudeOAuth =
         "CodexBar will ask macOS Keychain for the Claude Code OAuth token " +
         "so it can fetch your Claude usage. Click OK to continue."
+    static let museToken =
+        "CodexBar will ask macOS Keychain for the Muse Code login token " +
+        "so it can fetch your Muse Code subscription usage. Click OK to continue."
     static let codexCookie =
         "CodexBar will ask macOS Keychain for your OpenAI cookie header " +
         "so it can fetch Codex dashboard extras. Click OK to continue."
@@ -132,6 +135,8 @@ enum KeychainPromptCoordinator {
         let purpose = switch context.kind {
         case .claudeOAuth:
             L(KeychainPromptMessage.claudeOAuth)
+        case .museToken:
+            L(KeychainPromptMessage.museToken)
         case .codexCookie:
             L(KeychainPromptMessage.codexCookie)
         case .claudeCookie:
