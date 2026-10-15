@@ -23,7 +23,7 @@ Credential precedence: when `providers.meta.access_token` is present inline in t
 
 The Keychain item belongs to the Muse CLI, so its access list may not include CodexBar. CodexBar checks that access list without requesting the token. Background refreshes and the `codexbar` CLI never prompt: if access would require a prompt or the check cannot complete, they fail promptly without reading the token. Detecting whether a Muse login exists never requests its secret. A Keychain-only item detected as requiring interaction keeps the access diagnostic even when the CLI metadata file is absent.
 
-A manual refresh in the app is the one exception. When the access list does not include CodexBar yet, CodexBar first explains the request, then lets macOS ask for the item: choose **Always Allow** and later refreshes read silently. Denying the prompt keeps the grant diagnostic below and never retries within that refresh.
+A manual refresh in the app is the one exception. When the access list does not include CodexBar yet, CodexBar first explains the request, then lets macOS ask for the item: choose **Always Allow** and later refreshes read silently. The read shares the manual action’s single interactive Keychain allowance with browser cookie imports. Denying the prompt keeps the grant diagnostic below and suppresses further manual prompts for six hours. Background and settings-triggered refreshes never prompt.
 
 If the card says CodexBar is not allowed to read the credentials (for example after denying the prompt, or for `codexbar` CLI reads), grant access in Keychain Access instead:
 
@@ -33,7 +33,7 @@ If the card says CodexBar is not allowed to read the credentials (for example af
 
 A fresh `muse login` can recreate the Keychain item without the grant, so repeat these steps if the message returns after signing in again. If the card instead says the credentials could not be read right now, unlock the login Keychain and refresh.
 
-When a Keychain-only login cannot be read because Keychain access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled.
+When CLI metadata points to Keychain and access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled.
 
 ## Data shown
 

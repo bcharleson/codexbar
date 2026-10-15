@@ -31,13 +31,8 @@ public enum MuseCredentials {
             if let token = try self.keychainAccessToken() {
                 return token
             }
-        } catch let error as MuseUsageError
-            where error == .keychainAccessDisabled || error == .keychainAccessNotGranted
-            || error == .keychainUnavailable
-        {
-            if error == .keychainAccessNotGranted || error == .keychainUnavailable || authFile != nil {
-                throw error
-            }
+        } catch MuseUsageError.keychainAccessDisabled where authFile == nil {
+            // With no metadata and lookup disabled, there is no detectable login.
         }
         throw MuseUsageError.missingCredentials
     }
@@ -121,7 +116,8 @@ public enum MuseCredentials {
         case .interactionRequired:
             // Only an explicit user action in the app may earn the grant through the system prompt.
             // Background refreshes and processes without the explanation alert (the CLI) never prompt.
-            guard ProviderInteractionContext.current == .userInitiated,
+            guard KeychainPromptHandler.isInstalled,
+                  BrowserCookieAccessGate.claimCredentialRead(service: self.keychainService),
                   KeychainPromptHandler.notifyIfHandled(
                       KeychainPromptContext(
                           kind: .museToken,
@@ -151,19 +147,11 @@ public enum MuseCredentials {
         case errSecItemNotFound:
             return nil
         default:
-            if allowPrompt, Self.isAuthorizationDenial(status) {
+            if allowPrompt, [errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem].contains(status) {
+                BrowserCookieAccessGate.recordCredentialDenial(service: self.keychainService)
                 throw MuseUsageError.keychainAccessNotGranted
             }
             throw MuseUsageError.keychainUnavailable
-        }
-    }
-
-    private static func isAuthorizationDenial(_ status: OSStatus) -> Bool {
-        switch status {
-        case errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem, errSecInteractionNotAllowed:
-            true
-        default:
-            false
         }
     }
     #endif

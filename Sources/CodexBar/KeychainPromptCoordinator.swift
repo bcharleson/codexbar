@@ -3,6 +3,10 @@ import CodexBarCore
 import SweetCookieKit
 
 private enum KeychainPromptMessage {
+    static let providerCookie =
+        "CodexBar will ask macOS Keychain for your %@ cookie header " +
+        "so it can fetch usage. Click OK to continue."
+
     static let browserCookie =
         "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies " +
         "and authenticate your account. Click OK to continue."
@@ -19,15 +23,6 @@ private enum KeychainPromptMessage {
     static let claudeCookie =
         "CodexBar will ask macOS Keychain for your Claude cookie header " +
         "so it can fetch Claude web usage. Click OK to continue."
-    static let cursorCookie =
-        "CodexBar will ask macOS Keychain for your Cursor cookie header " +
-        "so it can fetch usage. Click OK to continue."
-    static let openCodeCookie =
-        "CodexBar will ask macOS Keychain for your OpenCode cookie header " +
-        "so it can fetch usage. Click OK to continue."
-    static let factoryCookie =
-        "CodexBar will ask macOS Keychain for your Factory cookie header " +
-        "so it can fetch usage. Click OK to continue."
     static let zaiToken =
         "CodexBar will ask macOS Keychain for your z.ai API token " +
         "so it can fetch usage. Click OK to continue."
@@ -40,17 +35,8 @@ private enum KeychainPromptMessage {
     static let kimiToken =
         "CodexBar will ask macOS Keychain for your Kimi auth token " +
         "so it can fetch usage. Click OK to continue."
-    static let minimaxCookie =
-        "CodexBar will ask macOS Keychain for your MiniMax cookie header " +
-        "so it can fetch usage. Click OK to continue."
     static let minimaxToken =
         "CodexBar will ask macOS Keychain for your MiniMax API token " +
-        "so it can fetch usage. Click OK to continue."
-    static let augmentCookie =
-        "CodexBar will ask macOS Keychain for your Augment cookie header " +
-        "so it can fetch usage. Click OK to continue."
-    static let ampCookie =
-        "CodexBar will ask macOS Keychain for your Amp cookie header " +
         "so it can fetch usage. Click OK to continue."
 }
 
@@ -142,11 +128,11 @@ enum KeychainPromptCoordinator {
         case .claudeCookie:
             L(KeychainPromptMessage.claudeCookie)
         case .cursorCookie:
-            L(KeychainPromptMessage.cursorCookie)
+            L(KeychainPromptMessage.providerCookie, "Cursor")
         case .opencodeCookie:
-            L(KeychainPromptMessage.openCodeCookie)
+            L(KeychainPromptMessage.providerCookie, "OpenCode")
         case .factoryCookie:
-            L(KeychainPromptMessage.factoryCookie)
+            L(KeychainPromptMessage.providerCookie, "Factory")
         case .zaiToken:
             L(KeychainPromptMessage.zaiToken)
         case .syntheticToken:
@@ -156,13 +142,13 @@ enum KeychainPromptCoordinator {
         case .kimiToken:
             L(KeychainPromptMessage.kimiToken)
         case .minimaxCookie:
-            L(KeychainPromptMessage.minimaxCookie)
+            L(KeychainPromptMessage.providerCookie, "MiniMax")
         case .minimaxToken:
             L(KeychainPromptMessage.minimaxToken)
         case .augmentCookie:
-            L(KeychainPromptMessage.augmentCookie)
+            L(KeychainPromptMessage.providerCookie, "Augment")
         case .ampCookie:
-            L(KeychainPromptMessage.ampCookie)
+            L(KeychainPromptMessage.providerCookie, "Amp")
         }
         return self.alertModel(purpose: purpose)
     }

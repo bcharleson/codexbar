@@ -84,7 +84,7 @@ struct MuseCredentialsTests {
     }
 
     @Test
-    func `prompt-required Keychain error stays distinct from the disabled-access toggle`() throws {
+    func `transient Keychain error stays distinct from the disabled-access toggle`() throws {
         let message = try #require(MuseUsageError.keychainUnavailable.errorDescription)
         #expect(!message.contains("Disable Keychain access"))
     }
