@@ -722,6 +722,12 @@
 "link_website" = "Web sitesi";
 "link_twitter" = "Twitter";
 "link_email" = "E-posta";
+"link_acknowledgements" = "Teşekkürler";
+"acknowledgements_footer" = "CodexBar bu açık kaynak projelerle geliştirildi.";
+"acknowledgements_others" = "%d diğer kişi";
+"acknowledgements_author" = "Yazar";
+"acknowledgements_authors" = "Yazarlar";
+"acknowledgements_license" = "Lisans";
 "check_updates_auto" = "Güncellemeleri otomatik denetle";
 "update_channel" = "Güncelleme kanalı";
 "check_for_updates" = "Güncellemeleri denetle…";
@@ -1430,6 +1436,8 @@
 "menu_bar_layout_size" = "Boyut";
 "menu_bar_layout_size_small" = "Küçük";
 "menu_bar_layout_size_regular" = "Normal";
+"menu_bar_layout_size_large" = "Büyük";
+"menu_bar_layout_monospaced_digits" = "Eş aralıklı rakamlar";
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -2411,6 +2419,7 @@
 
 "X API cost history is not available." = "X API maliyet geçmişi kullanılamıyor.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "auth_token ve ct0 içeren bir console.x.com Cookie başlığı yapıştırın.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "sessionKey içeren bir platform.claude.com Cookie başlığı yapıştırın.";
 "Open X Developer Console" = "X Geliştirici Konsolunu Aç";
 "update_available_notification_body" = "Güncelleme ayarlarını açmak ve yeni sürümü yüklemek için tıklayın.";
 // Structured session performance layout.
@@ -2513,6 +2522,7 @@
 "Ahead of pace is +" = "Hızın üzerinde kullanım +";
 "Reserve is +" = "Rezerv +";
 
+"cost_reset_inferred_tooltip" = "Çıkarım: %@ bu tarihi bildirmez. Aylık harcama limitleri her ayın 1'inde 00:00 UTC'de sıfırlanır.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Faturalama okuma erişimi olan anahtar (BILLING veya READONLY ön ayarı). Ya da FAL_KEY değerini ayarlayın.";
 
@@ -2534,6 +2544,7 @@
 "Only enabled providers" = "Yalnızca etkin sağlayıcılar";
 "Restore default order" = "Varsayılan sırayı geri yükle";
 "Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
+"Local Codex details; excluded from combined totals." = "Yerel Codex ayrıntıları; birleşik toplamlara dahil edilmez.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2622,3 +2633,7 @@
 "Daily spend · %@" = "Günlük harcama · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Seçili “%@” token hesabı için geçerlidir. Her hesap kendi sınırlarını korur.";
 "Applies to the OpenAI API key, not to token accounts." = "Token hesapları için değil, OpenAI API anahtarı için geçerlidir.";
+/* Claude Platform provider */
+"API credit" = "API kredisi";
+"Purchased credit" = "Satın alınan kredi";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform, yerel token maliyet geçmişini değil, Console kredi bakiyesini ve aylık harcamayı gösterir.";

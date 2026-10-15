@@ -702,6 +702,12 @@
 "link_website" = "웹사이트";
 "link_twitter" = "Twitter";
 "link_email" = "이메일";
+"link_acknowledgements" = "감사의 말";
+"acknowledgements_footer" = "CodexBar는 다음 오픈 소스 프로젝트로 만들어졌습니다.";
+"acknowledgements_others" = "외 %d명";
+"acknowledgements_author" = "작성자";
+"acknowledgements_authors" = "작성자";
+"acknowledgements_license" = "라이선스";
 "check_updates_auto" = "자동으로 업데이트 확인";
 "update_channel" = "업데이트 채널";
 "check_for_updates" = "업데이트 확인…";
@@ -1398,6 +1404,8 @@
 "menu_bar_layout_size" = "크기";
 "menu_bar_layout_size_small" = "작게";
 "menu_bar_layout_size_regular" = "보통";
+"menu_bar_layout_size_large" = "크게";
+"menu_bar_layout_monospaced_digits" = "고정폭 숫자";
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";
@@ -2376,6 +2384,7 @@
 
 "X API cost history is not available." = "X API 비용 기록을 사용할 수 없습니다.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "auth_token과 ct0이 포함된 console.x.com의 Cookie 헤더를 붙여넣으세요.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "sessionKey가 포함된 platform.claude.com의 Cookie 헤더를 붙여넣으세요.";
 "Open X Developer Console" = "X 개발자 콘솔 열기";
 "update_available_notification_body" = "클릭하여 업데이트 설정을 열고 새 버전을 설치하세요.";
 // Structured session performance layout.
@@ -2478,6 +2487,7 @@
 "Ahead of pace is +" = "기준 속도 초과는 +";
 "Reserve is +" = "여유분은 +";
 
+"cost_reset_inferred_tooltip" = "추정: %@에서 이 날짜를 제공하지 않습니다. 월간 지출 한도는 매월 1일 00:00 UTC에 재설정됩니다.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "결제 읽기 권한이 있는 키(BILLING 또는 READONLY 프리셋). 또는 FAL_KEY를 설정하세요.";
 
@@ -2499,6 +2509,7 @@
 "Only enabled providers" = "활성 공급자만 표시";
 "Restore default order" = "기본 순서 복원";
 "Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
+"Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2587,3 +2598,7 @@
 "Daily spend · %@" = "일일 지출 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
 "Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";
+/* Claude Platform provider */
+"API credit" = "API 크레딧";
+"Purchased credit" = "구매한 크레딧";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform은 로컬 토큰 비용 내역이 아닌 Console 크레딧 잔액과 월간 지출을 표시합니다.";

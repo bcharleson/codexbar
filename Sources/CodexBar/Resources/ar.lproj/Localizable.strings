@@ -722,6 +722,12 @@
 "link_website" = "الموقع الإلكتروني";
 "link_twitter" = "تويتر";
 "link_email" = "البريد الإلكتروني";
+"link_acknowledgements" = "شكر وتقدير";
+"acknowledgements_footer" = "تم بناء CodexBar باستخدام هذه المشاريع مفتوحة المصدر.";
+"acknowledgements_others" = "%d آخرين";
+"acknowledgements_author" = "المؤلف";
+"acknowledgements_authors" = "المؤلفون";
+"acknowledgements_license" = "الترخيص";
 "check_updates_auto" = "تحقق تلقائيا من التحديثات";
 "update_channel" = "قناة التحديث";
 "check_for_updates" = "تحقق من التحديثات...";
@@ -1432,6 +1438,8 @@
 "menu_bar_layout_size" = "الحجم";
 "menu_bar_layout_size_small" = "صغير";
 "menu_bar_layout_size_regular" = "عادي";
+"menu_bar_layout_size_large" = "كبير";
+"menu_bar_layout_monospaced_digits" = "أرقام متساوية العرض";
 "menu_bar_layout_gap" = "المسافة";
 "menu_bar_layout_gap_tight" = "ضيّق";
 "menu_bar_layout_gap_regular" = "عادي";
@@ -2412,6 +2420,7 @@
 
 "X API cost history is not available." = "سجل تكاليف X API غير متاح.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "الصق ترويسة Cookie من console.x.com تحتوي على auth_token وct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "الصق ترويسة Cookie من platform.claude.com تحتوي على sessionKey.";
 "Open X Developer Console" = "افتح وحدة تحكم مطوري X";
 "update_available_notification_body" = "انقر لفتح إعدادات التحديث وتثبيت الإصدار الجديد.";
 // Structured session performance layout.
@@ -2514,6 +2523,7 @@
 "Ahead of pace is +" = "تجاوز الوتيرة هو +";
 "Reserve is +" = "الاحتياطي هو +";
 
+"cost_reset_inferred_tooltip" = "مستنتَج: لا يُبلغ %@ عن هذا التاريخ. تتم إعادة تعيين حدود الإنفاق الشهرية في الساعة 00:00 بالتوقيت العالمي المنسق (UTC) في اليوم الأول من الشهر.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "مفتاح بصلاحية قراءة الفوترة (الإعداد المسبق BILLING أو READONLY). أو اضبط FAL_KEY.";
 
@@ -2535,6 +2545,7 @@
 "Only enabled providers" = "المزوّدون المفعّلون فقط";
 "Restore default order" = "استعادة الترتيب الافتراضي";
 "Also restores the provider order in the menu bar. Can be undone." = "يستعيد أيضاً ترتيب المزوّدين في شريط القوائم. يمكن التراجع عن هذا الإجراء.";
+"Local Codex details; excluded from combined totals." = "تفاصيل Codex المحلية؛ مستبعدة من الإجماليات المجمّعة.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2623,3 +2634,7 @@
 "Daily spend · %@" = "الإنفاق اليومي · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "تنطبق على حساب الرمز المحدد «%@». يحتفظ كل حساب بحدوده الخاصة.";
 "Applies to the OpenAI API key, not to token accounts." = "تنطبق على مفتاح OpenAI API، وليس على حسابات الرموز.";
+/* Claude Platform provider */
+"API credit" = "رصيد API";
+"Purchased credit" = "رصيد مشترى";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "يعرض Claude Platform رصيد الائتمان في Console والإنفاق الشهري، وليس سجل تكلفة الرموز المحلي.";

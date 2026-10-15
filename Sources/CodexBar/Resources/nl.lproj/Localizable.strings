@@ -716,6 +716,12 @@
 "link_website" = "Website";
 "link_twitter" = "Twitteren";
 "link_email" = "E-mail";
+"link_acknowledgements" = "Dankbetuigingen";
+"acknowledgements_footer" = "CodexBar is gebouwd met deze opensourceprojecten.";
+"acknowledgements_others" = "%d anderen";
+"acknowledgements_author" = "Auteur";
+"acknowledgements_authors" = "Auteurs";
+"acknowledgements_license" = "Licentie";
 "check_updates_auto" = "Automatisch controleren op updates";
 "update_channel" = "Kanaal bijwerken";
 "check_for_updates" = "Controleer op updates…";
@@ -1428,6 +1434,8 @@
 "menu_bar_layout_size" = "Grootte";
 "menu_bar_layout_size_small" = "Klein";
 "menu_bar_layout_size_regular" = "Normaal";
+"menu_bar_layout_size_large" = "Groot";
+"menu_bar_layout_monospaced_digits" = "Cijfers met vaste breedte";
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
@@ -2407,6 +2415,7 @@
 
 "X API cost history is not available." = "Kostengeschiedenis voor X API is niet beschikbaar.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Plak een Cookie-header van console.x.com met auth_token en ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Plak een Cookie-header van platform.claude.com met sessionKey.";
 "Open X Developer Console" = "X-ontwikkelaarsconsole openen";
 "update_available_notification_body" = "Klik om de update-instellingen te openen en de nieuwe versie te installeren.";
 // Structured session performance layout.
@@ -2509,6 +2518,7 @@
 "Ahead of pace is +" = "Boven het tempo is +";
 "Reserve is +" = "Reserve krijgt +";
 
+"cost_reset_inferred_tooltip" = "Afgeleid: %@ meldt deze datum niet. Maandelijkse bestedingslimieten worden op de 1e om 00:00 UTC gereset.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Sleutel met leestoegang tot facturering (preset BILLING of READONLY). Of stel FAL_KEY in.";
 
@@ -2530,6 +2540,7 @@
 "Only enabled providers" = "Alleen ingeschakelde aanbieders";
 "Restore default order" = "Standaardvolgorde herstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
+"Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2616,3 +2627,7 @@
 "Daily spend · %@" = "Dagelijkse uitgaven · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Geldt voor het geselecteerde tokenaccount ‘%@’. Elk account behoudt zijn eigen limieten.";
 "Applies to the OpenAI API key, not to token accounts." = "Geldt voor de OpenAI API-sleutel, niet voor tokenaccounts.";
+/* Claude Platform provider */
+"API credit" = "API-tegoed";
+"Purchased credit" = "Gekocht tegoed";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform toont het Console-tegoed en de maandelijkse uitgaven, niet de lokale tokenkostengeschiedenis.";

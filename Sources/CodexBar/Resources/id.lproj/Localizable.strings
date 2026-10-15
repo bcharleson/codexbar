@@ -724,6 +724,12 @@
 "link_website" = "Situs Web";
 "link_twitter" = "Twitter";
 "link_email" = "Surel";
+"link_acknowledgements" = "Ucapan Terima Kasih";
+"acknowledgements_footer" = "CodexBar dibangun dengan proyek sumber terbuka ini.";
+"acknowledgements_others" = "%d lainnya";
+"acknowledgements_author" = "Penulis";
+"acknowledgements_authors" = "Penulis";
+"acknowledgements_license" = "Lisensi";
 "check_updates_auto" = "Periksa pembaruan secara otomatis";
 "update_channel" = "Saluran Pembaruan";
 "check_for_updates" = "Periksa Pembaruan…";
@@ -1432,6 +1438,8 @@
 "menu_bar_layout_size" = "Ukuran";
 "menu_bar_layout_size_small" = "Kecil";
 "menu_bar_layout_size_regular" = "Reguler";
+"menu_bar_layout_size_large" = "Besar";
+"menu_bar_layout_monospaced_digits" = "Digit lebar tetap";
 "menu_bar_layout_gap" = "Jarak";
 "menu_bar_layout_gap_tight" = "Rapat";
 "menu_bar_layout_gap_regular" = "Reguler";
@@ -2411,6 +2419,7 @@
 
 "X API cost history is not available." = "Riwayat biaya X API tidak tersedia.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Tempel header Cookie dari console.x.com yang berisi auth_token dan ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Tempel header Cookie dari platform.claude.com yang berisi sessionKey.";
 "Open X Developer Console" = "Buka Konsol Pengembang X";
 "update_available_notification_body" = "Klik untuk membuka pengaturan pembaruan dan menginstal versi baru.";
 // Structured session performance layout.
@@ -2513,6 +2522,7 @@
 "Ahead of pace is +" = "Di atas laju adalah +";
 "Reserve is +" = "Cadangan adalah +";
 
+"cost_reset_inferred_tooltip" = "Diperkirakan: %@ tidak melaporkan tanggal ini. Batas pengeluaran bulanan direset pada pukul 00:00 UTC setiap tanggal 1.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Kunci dengan akses baca penagihan (preset BILLING atau READONLY). Atau atur FAL_KEY.";
 
@@ -2534,6 +2544,7 @@
 "Only enabled providers" = "Hanya penyedia aktif";
 "Restore default order" = "Pulihkan urutan bawaan";
 "Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
+"Local Codex details; excluded from combined totals." = "Detail Codex lokal; tidak termasuk dalam total gabungan.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2620,3 +2631,7 @@
 "Daily spend · %@" = "Pengeluaran harian · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Berlaku untuk akun token yang dipilih “%@”. Setiap akun menyimpan batasnya sendiri.";
 "Applies to the OpenAI API key, not to token accounts." = "Berlaku untuk kunci API OpenAI, bukan untuk akun token.";
+/* Claude Platform provider */
+"API credit" = "Kredit API";
+"Purchased credit" = "Kredit yang dibeli";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform menampilkan saldo kredit dan pembelanjaan bulanan Console, bukan riwayat biaya token lokal.";

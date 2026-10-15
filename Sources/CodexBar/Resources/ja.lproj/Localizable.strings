@@ -713,6 +713,12 @@
 "link_website" = "ウェブサイト";
 "link_twitter" = "Twitter";
 "link_email" = "メール";
+"link_acknowledgements" = "謝辞";
+"acknowledgements_footer" = "CodexBar は以下のオープンソースプロジェクトを利用しています。";
+"acknowledgements_others" = "他 %d 名";
+"acknowledgements_author" = "作者";
+"acknowledgements_authors" = "作者";
+"acknowledgements_license" = "ライセンス";
 "check_updates_auto" = "アップデートを自動的に確認";
 "update_channel" = "アップデートチャンネル";
 "check_for_updates" = "アップデートを確認…";
@@ -1429,6 +1435,8 @@
 "menu_bar_layout_size" = "サイズ";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "標準";
+"menu_bar_layout_size_large" = "大";
+"menu_bar_layout_monospaced_digits" = "等幅数字";
 "menu_bar_layout_gap" = "間隔";
 "menu_bar_layout_gap_tight" = "狭い";
 "menu_bar_layout_gap_regular" = "標準";
@@ -2408,6 +2416,7 @@
 
 "X API cost history is not available." = "X API の費用履歴は利用できません。";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "auth_token と ct0 を含む console.x.com の Cookie ヘッダーを貼り付けてください。";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "sessionKey を含む platform.claude.com の Cookie ヘッダーを貼り付けてください。";
 "Open X Developer Console" = "X 開発者コンソールを開く";
 "update_available_notification_body" = "クリックしてアップデート設定を開き、新しいバージョンをインストールします。";
 // Structured session performance layout.
@@ -2510,6 +2519,7 @@
 "Ahead of pace is +" = "ペース超過を + で表示";
 "Reserve is +" = "余裕を + で表示";
 
+"cost_reset_inferred_tooltip" = "推定: %@ はこの日付を報告しません。月間の支出上限は毎月1日 00:00 UTC にリセットされます。";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "請求の読み取り権限を持つキー（BILLING または READONLY プリセット）。または FAL_KEY を設定します。";
 
@@ -2531,6 +2541,7 @@
 "Only enabled providers" = "有効なプロバイダーのみ";
 "Restore default order" = "既定の順序に戻す";
 "Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";
+"Local Codex details; excluded from combined totals." = "ローカルの Codex 詳細。合計には含まれません。";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
@@ -2619,3 +2630,7 @@
 "Daily spend · %@" = "日別の支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "選択中のトークンアカウント「%@」に適用されます。各アカウントは独自の上限を保持します。";
 "Applies to the OpenAI API key, not to token accounts." = "OpenAI APIキーに適用されます。トークンアカウントには適用されません。";
+/* Claude Platform provider */
+"API credit" = "API クレジット";
+"Purchased credit" = "購入済みクレジット";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform は、ローカルのトークンコスト履歴ではなく、Console のクレジット残高と月間支出を表示します。";

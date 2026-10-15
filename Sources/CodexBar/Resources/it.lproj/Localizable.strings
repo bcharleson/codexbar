@@ -724,6 +724,12 @@
 "link_website" = "Sito web";
 "link_twitter" = "X";
 "link_email" = "E-mail";
+"link_acknowledgements" = "Riconoscimenti";
+"acknowledgements_footer" = "CodexBar è realizzato con questi progetti open source.";
+"acknowledgements_others" = "altri %d";
+"acknowledgements_author" = "Autore";
+"acknowledgements_authors" = "Autori";
+"acknowledgements_license" = "Licenza";
 "check_updates_auto" = "Controlla automaticamente gli aggiornamenti";
 "update_channel" = "Canale aggiornamenti";
 "check_for_updates" = "Controlla aggiornamenti…";
@@ -1432,6 +1438,8 @@
 "menu_bar_layout_size" = "Dimensione";
 "menu_bar_layout_size_small" = "Piccola";
 "menu_bar_layout_size_regular" = "Normale";
+"menu_bar_layout_size_large" = "Grande";
+"menu_bar_layout_monospaced_digits" = "Cifre a spaziatura fissa";
 "menu_bar_layout_gap" = "Spaziatura";
 "menu_bar_layout_gap_tight" = "Stretta";
 "menu_bar_layout_gap_regular" = "Normale";
@@ -2412,6 +2420,7 @@
 
 "X API cost history is not available." = "La cronologia dei costi di X API non è disponibile.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Incolla un’intestazione Cookie di console.x.com contenente auth_token e ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Incolla un’intestazione Cookie di platform.claude.com contenente sessionKey.";
 "Open X Developer Console" = "Apri la console sviluppatori di X";
 "update_available_notification_body" = "Fai clic per aprire le impostazioni di aggiornamento e installare la nuova versione.";
 // Structured session performance layout.
@@ -2514,6 +2523,7 @@
 "Ahead of pace is +" = "Oltre il ritmo è +";
 "Reserve is +" = "La riserva è +";
 
+"cost_reset_inferred_tooltip" = "Dedotto: %@ non comunica questa data. I limiti di spesa mensili si reimpostano alle 00:00 UTC del giorno 1.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Chiave con accesso in lettura alla fatturazione (preset BILLING o READONLY). Oppure imposta FAL_KEY.";
 
@@ -2535,6 +2545,7 @@
 "Only enabled providers" = "Solo fornitori attivi";
 "Restore default order" = "Ripristina l’ordine predefinito";
 "Also restores the provider order in the menu bar. Can be undone." = "Ripristina anche l’ordine dei fornitori nella barra dei menu. L’azione può essere annullata.";
+"Local Codex details; excluded from combined totals." = "Dettagli Codex locali; esclusi dai totali combinati.";
 
 "Auto uses an API key when configured, otherwise browser cookies." = "Auto usa una chiave API se configurata, altrimenti i cookie del browser.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Memorizzata nel file di configurazione di CodexBar. Puoi anche impostare COMMAND_CODE_API_KEY.";
@@ -2623,3 +2634,7 @@
 "Daily spend · %@" = "Spesa giornaliera · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Si applica all’account token selezionato «%@». Ogni account mantiene i propri limiti.";
 "Applies to the OpenAI API key, not to token accounts." = "Si applica alla chiave API OpenAI, non agli account token.";
+/* Claude Platform provider */
+"API credit" = "Credito API";
+"Purchased credit" = "Credito acquistato";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform mostra il saldo del credito e la spesa mensile della Console, non la cronologia locale dei costi dei token.";
